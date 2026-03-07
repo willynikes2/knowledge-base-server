@@ -1,1 +1,130 @@
-<html><body><h1>KB Dashboard</h1><p>Coming soon</p></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Base</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <!-- Login Screen -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <h1>Knowledge Base</h1>
+      <p>Enter your password to continue</p>
+      <form id="login-form">
+        <input type="password" id="login-password" placeholder="Password" autofocus>
+        <button type="submit">Sign In</button>
+      </form>
+      <p id="login-error" class="error" hidden></p>
+    </div>
+  </div>
+
+  <!-- Main App (hidden until auth) -->
+  <div id="app" class="app-layout" hidden>
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <div class="sidebar-header">
+        <h2>KB</h2>
+      </div>
+      <ul class="nav-links">
+        <li><a href="#" data-section="upload" class="active">Upload</a></li>
+        <li><a href="#" data-section="documents">Documents</a></li>
+        <li><a href="#" data-section="settings">Settings</a></li>
+      </ul>
+      <div class="sidebar-footer">
+        <button id="logout-btn" class="btn-text">Sign Out</button>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Upload Section -->
+      <section id="section-upload" class="section">
+        <h2>Upload Documents</h2>
+        <div id="drop-zone" class="drop-zone">
+          <p>Drag & drop files here</p>
+          <p class="drop-zone-sub">or click to browse</p>
+          <input type="file" id="file-input" multiple hidden>
+        </div>
+        <div class="upload-options">
+          <input type="text" id="upload-tags" placeholder="Tags (comma-separated)">
+        </div>
+        <div id="upload-results" hidden></div>
+
+        <div class="bulk-ingest">
+          <h3>Bulk Ingest from Server</h3>
+          <div class="ingest-row">
+            <input type="text" id="ingest-path" placeholder="/path/to/directory">
+            <button id="ingest-btn">Ingest</button>
+          </div>
+          <div id="ingest-results" hidden></div>
+        </div>
+      </section>
+
+      <!-- Documents Section -->
+      <section id="section-documents" class="section" hidden>
+        <h2>Documents</h2>
+        <div class="search-bar">
+          <input type="text" id="search-input" placeholder="Search documents...">
+          <select id="type-filter">
+            <option value="">All Types</option>
+            <option value="markdown">Markdown</option>
+            <option value="text">Text</option>
+            <option value="code">Code</option>
+            <option value="pdf">PDF</option>
+            <option value="image">Image</option>
+          </select>
+        </div>
+        <div id="doc-list"></div>
+      </section>
+
+      <!-- Document Detail Modal -->
+      <div id="doc-modal" class="modal" hidden>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 id="modal-title"></h2>
+            <button id="modal-close" class="btn-icon">&times;</button>
+          </div>
+          <div class="modal-meta">
+            <span id="modal-type" class="tag-pill"></span>
+            <span id="modal-date"></span>
+            <span id="modal-size"></span>
+          </div>
+          <div class="modal-tags">
+            <label>Tags:</label>
+            <input type="text" id="modal-tags-input">
+            <button id="modal-save-tags" class="btn-sm">Save</button>
+          </div>
+          <pre id="modal-content" class="doc-content"></pre>
+          <div class="modal-actions">
+            <button id="modal-delete" class="btn-danger">Delete</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings Section -->
+      <section id="section-settings" class="section" hidden>
+        <h2>Settings</h2>
+        <div class="settings-group">
+          <h3>Statistics</h3>
+          <div id="stats-display"></div>
+        </div>
+        <div class="settings-group">
+          <h3>Change Password</h3>
+          <form id="password-form">
+            <input type="password" id="current-password" placeholder="Current password">
+            <input type="password" id="new-password" placeholder="New password">
+            <button type="submit">Update Password</button>
+          </form>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
