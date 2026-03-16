@@ -13,6 +13,12 @@ const commands = {
   ingest:   () => import('../src/cli/ingest-cli.js').then(m => m.ingest(args[0])),
   search:   () => import('../src/cli/search-cli.js').then(m => m.search(args.join(' '))),
   status:   () => import('../src/cli/status.js').then(m => m.status()),
+  vault:    () => {
+    const sub = args[0];
+    if (sub === 'reindex') return import('../src/cli/vault-cli.js').then(m => m.vaultReindex());
+    console.log('Usage: kb vault reindex');
+    process.exit(1);
+  },
 };
 
 if (!command || !commands[command]) {
@@ -26,6 +32,7 @@ Commands:
   ingest <path>      Ingest a file or directory
   search <query>     Search documents
   status             Show stats and server status
+  vault reindex      Reindex Obsidian vault
 `);
   process.exit(command ? 1 : 0);
 }

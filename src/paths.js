@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { homedir } from 'os';
 import { join } from 'path';
 import { mkdirSync } from 'fs';

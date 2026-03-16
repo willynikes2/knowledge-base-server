@@ -50,8 +50,31 @@ function initSchema(db) {
       INSERT INTO documents_fts(rowid, title, content, tags)
       VALUES (new.id, new.title, new.content, new.tags);
     END;
+
+    -- Vault file tracking for incremental indexing
+    CREATE TABLE IF NOT EXISTS vault_files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vault_path TEXT NOT NULL UNIQUE,
+      content_hash TEXT NOT NULL,
+      document_id INTEGER REFERENCES documents(id) ON DELETE SET NULL,
+      title TEXT,
+      note_type TEXT,
+      tags TEXT DEFAULT '',
+      project TEXT,
+      status TEXT DEFAULT 'active',
+      source TEXT,
+      confidence TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      indexed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_vault_files_hash ON vault_files(content_hash);
+    CREATE INDEX IF NOT EXISTS idx_vault_files_type ON vault_files(note_type);
+    CREATE INDEX IF NOT EXISTS idx_vault_files_project ON vault_files(project);
   `);
 }
+
+export { initSchema, getDb };
 
 export function insertDocument({ title, content, source, doc_type, tags, file_path, file_size }) {
   const stmt = getDb().prepare(`
@@ -148,4 +171,46 @@ export function getStats() {
 
 export function getDocumentCount() {
   return getDb().prepare('SELECT COUNT(*) as count FROM documents').get().count;
+}
+
+export function updateDocumentFull(id, { title, content, tags, doc_type, source, file_path, file_size }) {
+  const stmt = getDb().prepare(`
+    UPDATE documents SET title = ?, content = ?, tags = ?, doc_type = ?, source = ?, file_path = ?, file_size = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+  `);
+  return stmt.run(title, content, tags, doc_type, source, file_path, file_size, id);
+}
+
+export function getVaultFile(vaultPath) {
+  return getDb().prepare('SELECT * FROM vault_files WHERE vault_path = ?').get(vaultPath);
+}
+
+export function upsertVaultFile({ vault_path, content_hash, document_id, title, note_type, tags, project, status, source, confidence }) {
+  const stmt = getDb().prepare(`
+    INSERT INTO vault_files (vault_path, content_hash, document_id, title, note_type, tags, project, status, source, confidence, indexed_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(vault_path) DO UPDATE SET
+      content_hash = excluded.content_hash,
+      document_id = excluded.document_id,
+      title = excluded.title,
+      note_type = excluded.note_type,
+      tags = excluded.tags,
+      project = excluded.project,
+      status = excluded.status,
+      source = excluded.source,
+      confidence = excluded.confidence,
+      indexed_at = CURRENT_TIMESTAMP
+  `);
+  return stmt.run(vault_path, content_hash, document_id, title, note_type, tags || '', project, status, source, confidence);
+}
+
+export function deleteVaultFile(vaultPath) {
+  const vf = getDb().prepare('SELECT document_id FROM vault_files WHERE vault_path = ?').get(vaultPath);
+  if (vf && vf.document_id) {
+    getDb().prepare('DELETE FROM documents WHERE id = ?').run(vf.document_id);
+  }
+  getDb().prepare('DELETE FROM vault_files WHERE vault_path = ?').run(vaultPath);
+}
+
+export function getAllVaultPaths() {
+  return getDb().prepare('SELECT vault_path, content_hash FROM vault_files').all();
 }

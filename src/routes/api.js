@@ -15,6 +15,7 @@ import {
   getStats,
 } from '../db.js';
 import { ingestFile, ingestDirectory } from '../ingest.js';
+import { indexVault } from '../vault/indexer.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -138,6 +139,33 @@ router.post('/api/ingest-directory', async (req, res) => {
 router.get('/api/stats', (req, res) => {
   try {
     return res.json(getStats());
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/vault/reindex — triggered by post-sync hook or manually
+router.post('/api/vault/reindex', authMiddleware, async (req, res) => {
+  try {
+    const vaultPath = process.env.OBSIDIAN_VAULT_PATH;
+    if (!vaultPath) {
+      return res.status(400).json({ error: 'OBSIDIAN_VAULT_PATH not configured' });
+    }
+    const result = indexVault(vaultPath);
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/vault/status — check vault index state
+router.get('/api/vault/status', authMiddleware, (req, res) => {
+  try {
+    const vaultPath = process.env.OBSIDIAN_VAULT_PATH;
+    return res.json({
+      configured: !!vaultPath,
+      vault_path: vaultPath || null,
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
