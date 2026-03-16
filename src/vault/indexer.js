@@ -3,7 +3,7 @@ import { join, relative, extname } from 'path';
 import { createHash } from 'crypto';
 import { parseVaultNote } from './parser.js';
 import {
-  insertDocument, updateDocumentFull,
+  insertDocument, updateDocumentFull, getDb,
   getVaultFile, upsertVaultFile, deleteVaultFile, getAllVaultPaths,
 } from '../db.js';
 
@@ -40,7 +40,7 @@ function hashContent(content) {
   return createHash('sha256').update(content).digest('hex').slice(0, 16);
 }
 
-export function indexVault(vaultPath) {
+export async function indexVault(vaultPath, { embeddings = false } = {}) {
   const files = scanVault(vaultPath);
   const existingPaths = new Map(getAllVaultPaths().map(r => [r.vault_path, r.content_hash]));
   const seenPaths = new Set();
@@ -48,7 +48,21 @@ export function indexVault(vaultPath) {
   let indexed = 0;
   let skipped = 0;
   let deleted = 0;
+  let embedded = 0;
   let errors = [];
+
+  // Lazy-load embeddings only if requested
+  let generateEmbedding, embeddingToBuffer;
+  if (embeddings) {
+    try {
+      const embedModule = await import('../embeddings/embed.js');
+      generateEmbedding = embedModule.generateEmbedding;
+      embeddingToBuffer = embedModule.embeddingToBuffer;
+    } catch (err) {
+      errors.push(`embeddings init: ${err.message}`);
+      embeddings = false;
+    }
+  }
 
   for (const filePath of files) {
     const relPath = relative(vaultPath, filePath);
@@ -71,7 +85,6 @@ export function indexVault(vaultPath) {
       let docId;
 
       if (existing && existing.document_id) {
-        // Update existing document with full content
         updateDocumentFull(existing.document_id, {
           title: parsed.title,
           content: parsed.body,
@@ -83,7 +96,6 @@ export function indexVault(vaultPath) {
         });
         docId = existing.document_id;
       } else {
-        // Insert new document
         const doc = insertDocument({
           title: parsed.title,
           content: parsed.body,
@@ -110,6 +122,21 @@ export function indexVault(vaultPath) {
         confidence: parsed.confidence,
       });
 
+      // Generate embedding if enabled
+      if (embeddings && generateEmbedding) {
+        try {
+          const embedding = await generateEmbedding(parsed.body.slice(0, 2000));
+          const buffer = embeddingToBuffer(embedding);
+          getDb().prepare(`
+            INSERT OR REPLACE INTO embeddings (document_id, vault_path, chunk_index, chunk_text, embedding, dimensions)
+            VALUES (?, ?, 0, ?, ?, ?)
+          `).run(docId, relPath, parsed.body.slice(0, 500), buffer, embedding.length);
+          embedded++;
+        } catch (embErr) {
+          errors.push(`embedding ${relPath}: ${embErr.message}`);
+        }
+      }
+
       indexed++;
     } catch (err) {
       errors.push(`${relPath}: ${err.message}`);
@@ -124,5 +151,5 @@ export function indexVault(vaultPath) {
     }
   }
 
-  return { indexed, skipped, deleted, errors, total: files.length };
+  return { indexed, skipped, deleted, embedded, errors, total: files.length };
 }

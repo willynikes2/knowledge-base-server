@@ -71,6 +71,21 @@ function initSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_vault_files_hash ON vault_files(content_hash);
     CREATE INDEX IF NOT EXISTS idx_vault_files_type ON vault_files(note_type);
     CREATE INDEX IF NOT EXISTS idx_vault_files_project ON vault_files(project);
+
+    -- Embeddings for semantic search (stored as Float32Array binary blobs)
+    CREATE TABLE IF NOT EXISTS embeddings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+      vault_path TEXT,
+      chunk_index INTEGER DEFAULT 0,
+      chunk_text TEXT,
+      embedding BLOB NOT NULL,
+      dimensions INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_embeddings_doc ON embeddings(document_id);
+    CREATE INDEX IF NOT EXISTS idx_embeddings_vault ON embeddings(vault_path);
   `);
 }
 

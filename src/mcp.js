@@ -9,6 +9,8 @@ import { indexVault } from './vault/indexer.js';
 import { captureYouTube } from './capture/youtube.js';
 import { captureWeb } from './capture/web.js';
 import { captureSession, captureFix } from './capture/terminal.js';
+import { hybridSearch } from './embeddings/search.js';
+import { getRecentNotes, generateSynthesisPrompt } from './synthesis/weekly-review.js';
 
 export async function start() {
   const server = new McpServer({
@@ -260,6 +262,62 @@ export async function start() {
         const result = captureFix({ title, symptom, cause, resolution, commands, project, stack }, vaultPath);
         try { indexVault(vaultPath); } catch { /* non-fatal */ }
         return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+      } catch (err) {
+        return { content: [{ type: 'text', text: `Error: ${err.message}` }], isError: true };
+      }
+    }
+  );
+
+  server.tool(
+    'kb_search_smart',
+    'Smart search combining keyword matching and semantic similarity. Better than kb_search for conceptual queries like "how do we handle authentication" vs exact keyword matches.',
+    {
+      query: z.string().describe('Search query — can be a question or topic'),
+      limit: z.number().optional().default(10),
+      project: z.string().optional().describe('Filter by project'),
+      type: z.string().optional().describe('Filter by note type'),
+    },
+    async ({ query, limit, project, type }) => {
+      try {
+        const results = await hybridSearch(query, { limit, project, type });
+        return { content: [{ type: 'text', text: JSON.stringify(results, null, 2) }] };
+      } catch (err) {
+        return { content: [{ type: 'text', text: `Error: ${err.message}` }], isError: true };
+      }
+    }
+  );
+
+  server.tool(
+    'kb_promote',
+    'Analyze a source/inbox note and promote it into structured knowledge. Read the note, classify it, then use kb_write to create promoted notes (research, ideas, workflows, lessons).',
+    {
+      note_path: z.string().describe('Vault-relative path to the source note (e.g. sources/web/article.md)'),
+    },
+    async ({ note_path }) => {
+      try {
+        const vaultPath = process.env.OBSIDIAN_VAULT_PATH;
+        if (!vaultPath) return { content: [{ type: 'text', text: 'Error: OBSIDIAN_VAULT_PATH not configured' }], isError: true };
+        return { content: [{ type: 'text', text: `To promote this note, read it and use kb_write to create the appropriate output notes (research, idea, workflow, lesson, decision) based on what you extract. Source note: ${note_path}` }] };
+      } catch (err) {
+        return { content: [{ type: 'text', text: `Error: ${err.message}` }], isError: true };
+      }
+    }
+  );
+
+  server.tool(
+    'kb_synthesize',
+    'Generate a synthesis of recent knowledge. Connects dots across sources to find themes, opportunities, and improvements.',
+    {
+      days: z.number().optional().default(7).describe('How many days back to look'),
+    },
+    async ({ days }) => {
+      try {
+        const vaultPath = process.env.OBSIDIAN_VAULT_PATH;
+        if (!vaultPath) return { content: [{ type: 'text', text: 'Error: OBSIDIAN_VAULT_PATH not configured' }], isError: true };
+        const notes = getRecentNotes(vaultPath, days);
+        if (notes.length === 0) return { content: [{ type: 'text', text: 'No recent notes to synthesize.' }] };
+        const prompt = generateSynthesisPrompt(notes);
+        return { content: [{ type: 'text', text: prompt }] };
       } catch (err) {
         return { content: [{ type: 'text', text: `Error: ${err.message}` }], isError: true };
       }
