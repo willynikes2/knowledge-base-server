@@ -1,0 +1,34 @@
+# Example systemd service file for Knowledge Base Server
+# The install script (kb-server-install.sh) generates this automatically.
+# If installing manually, replace all <PLACEHOLDER> values with your paths.
+
+[Unit]
+Description=Knowledge Base Server
+After=network.target
+Documentation=https://github.com/willynikes2/knowledge-base-server
+
+[Service]
+Type=simple
+User=<YOUR_USER>
+WorkingDirectory=<PATH_TO_KNOWLEDGE_BASE_SERVER>
+Environment="NODE_ENV=production"
+Environment="PATH=<PATH_TO_NODE_BIN_DIR>:/usr/local/bin:/usr/bin:/bin"
+ExecStart=<PATH_TO_NODE_BIN> <PATH_TO_KNOWLEDGE_BASE_SERVER>/bin/kb.js start
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kb-server
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=<HOME>/.knowledge-base <PATH_TO_KNOWLEDGE_BASE_SERVER> <OBSIDIAN_VAULT_PATH> <HOME>/knowledgebase /tmp
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target

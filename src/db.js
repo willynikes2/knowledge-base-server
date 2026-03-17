@@ -8,7 +8,17 @@ function getDb() {
   if (!db) {
     db = new Database(DB_PATH);
     db.pragma('journal_mode = WAL');
+    db.pragma('wal_autocheckpoint = 100');  // Checkpoint every 100 pages (~400KB) to prevent WAL bloat
     initSchema(db);
+
+    // Periodic WAL checkpoint every 5 minutes to keep WAL file small
+    setInterval(() => {
+      try {
+        db.pragma('wal_checkpoint(TRUNCATE)');
+      } catch (e) {
+        console.error('[KB] WAL checkpoint failed:', e.message);
+      }
+    }, 5 * 60 * 1000).unref();
   }
   return db;
 }
@@ -136,28 +146,91 @@ export function deleteDocument(id) {
   return doc ? doc.file_path : null;
 }
 
+// Common English stop words to filter from search queries
+const STOP_WORDS = new Set([
+  'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+  'should', 'may', 'might', 'shall', 'can', 'need', 'dare', 'ought',
+  'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as',
+  'into', 'through', 'during', 'before', 'after', 'above', 'below',
+  'between', 'out', 'off', 'over', 'under', 'again', 'further', 'then',
+  'and', 'but', 'or', 'nor', 'not', 'so', 'yet', 'both', 'either',
+  'neither', 'each', 'every', 'all', 'any', 'few', 'more', 'most',
+  'other', 'some', 'such', 'no', 'only', 'own', 'same', 'than', 'too',
+  'very', 'just', 'because', 'if', 'when', 'where', 'how', 'what',
+  'which', 'who', 'whom', 'this', 'that', 'these', 'those', 'i', 'me',
+  'my', 'we', 'our', 'you', 'your', 'he', 'him', 'his', 'she', 'her',
+  'it', 'its', 'they', 'them', 'their', 'about', 'up',
+]);
+
 export function searchDocuments(query, limit = 20) {
-  // Escape FTS5 special characters and wrap each term in quotes
-  const sanitized = query
+  // Strip punctuation, split into terms, remove stop words
+  const terms = query
     .replace(/['"]/g, '')
     .split(/\s+/)
     .filter(Boolean)
-    .map(term => `"${term}"`)
-    .join(' ');
+    .map(t => t.toLowerCase())
+    .filter(t => !STOP_WORDS.has(t) && t.length > 1);
 
-  if (!sanitized) return [];
+  if (terms.length === 0) {
+    // All terms were stop words — fall back to original terms
+    const fallback = query.replace(/['"]/g, '').split(/\s+/).filter(Boolean);
+    if (fallback.length === 0) return [];
+    const sanitized = fallback.map(term => `"${term}"`).join(' OR ');
+    const stmt = getDb().prepare(`
+      SELECT d.id, d.title,
+        snippet(documents_fts, 1, '<mark>', '</mark>', '...', 30) as snippet,
+        d.doc_type, d.tags, d.file_size, d.created_at,
+        bm25(documents_fts, 10.0, 1.0, 5.0) as rank
+      FROM documents_fts f
+      JOIN documents d ON d.id = f.rowid
+      WHERE documents_fts MATCH ?
+      ORDER BY rank
+      LIMIT ?
+    `);
+    return stmt.all(sanitized, limit);
+  }
+
+  // Build FTS5 query: AND-first for precision, OR fallback for recall
+  // Title-boosted ranking via bm25() weights: title=10x, content=1x, tags=5x
+  const andQuery = terms.map(term => `"${term}" *`).join(' AND ');
+  const orQuery = terms.map(term => `"${term}" *`).join(' OR ');
 
   const stmt = getDb().prepare(`
     SELECT d.id, d.title,
       snippet(documents_fts, 1, '<mark>', '</mark>', '...', 30) as snippet,
-      d.doc_type, d.tags, d.file_size, d.created_at, rank
+      d.doc_type, d.tags, d.file_size, d.created_at,
+      bm25(documents_fts, 10.0, 1.0, 5.0) as rank
     FROM documents_fts f
     JOIN documents d ON d.id = f.rowid
     WHERE documents_fts MATCH ?
     ORDER BY rank
     LIMIT ?
   `);
-  return stmt.all(sanitized, limit);
+
+  // Try AND first for precision; fall back to OR if no results
+  let results = stmt.all(andQuery, limit);
+  if (results.length === 0 && terms.length > 1) {
+    results = stmt.all(orQuery, limit);
+  }
+
+  // If OR gives too many low-quality results, re-rank: boost docs matching more terms
+  if (terms.length > 1 && results.length > 0) {
+    for (const r of results) {
+      const titleLower = (r.title || '').toLowerCase();
+      const tagsLower = (r.tags || '').toLowerCase();
+      let termBoost = 0;
+      for (const term of terms) {
+        if (titleLower.includes(term)) termBoost += 20;  // title match is very strong
+        if (tagsLower.includes(term)) termBoost += 10;   // tag match is strong
+      }
+      // rank is negative (lower = better in bm25), so subtract boost to improve ranking
+      r.rank = r.rank - termBoost;
+    }
+    results.sort((a, b) => a.rank - b.rank);
+  }
+
+  return results;
 }
 
 export function listDocuments({ type, tag, limit = 50, offset = 0 } = {}) {

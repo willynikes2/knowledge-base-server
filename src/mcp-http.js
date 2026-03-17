@@ -22,9 +22,37 @@ function createMcpServer() {
 
 /**
  * Session store: maps session ID -> { server, transport }
- * Sessions are cleaned up when the transport closes.
+ * Sessions are cleaned up when the transport closes OR after TTL expiry.
  */
 const sessions = new Map();
+const sessionTimers = new Map();
+const SESSION_TTL = 60 * 60 * 1000; // 1 hour max idle per session
+
+function scheduleSessionCleanup(sid) {
+  // Clear any existing timer for this session
+  const existing = sessionTimers.get(sid);
+  if (existing) clearTimeout(existing);
+
+  const timer = setTimeout(() => {
+    const session = sessions.get(sid);
+    if (session) {
+      console.log(`[KB] Session ${sid} expired after TTL — cleaning up`);
+      try { session.transport.close?.(); } catch {}
+      sessions.delete(sid);
+    }
+    sessionTimers.delete(sid);
+  }, SESSION_TTL);
+  timer.unref(); // Don't keep process alive just for cleanup
+  sessionTimers.set(sid, timer);
+}
+
+function clearSessionTimer(sid) {
+  const timer = sessionTimers.get(sid);
+  if (timer) {
+    clearTimeout(timer);
+    sessionTimers.delete(sid);
+  }
+}
 
 /**
  * Handle POST /mcp — all MCP protocol operations (initialize, tools/list, tools/call, etc.)
@@ -40,8 +68,9 @@ export async function mcpHttpHandler(req, res) {
   let transport;
 
   if (sessionId && sessions.has(sessionId)) {
-    // Existing session — reuse transport
+    // Existing session — reuse transport, refresh TTL
     transport = sessions.get(sessionId).transport;
+    scheduleSessionCleanup(sessionId);
   } else if (!sessionId) {
     // New session — create server + transport
     transport = new StreamableHTTPServerTransport({
@@ -53,12 +82,14 @@ export async function mcpHttpHandler(req, res) {
     // Store session once the transport assigns a session ID (happens during handleRequest)
     transport._webStandardTransport._onsessioninitialized = (sid) => {
       sessions.set(sid, { server, transport });
+      scheduleSessionCleanup(sid);
     };
 
     // Clean up when transport closes
     transport.onclose = () => {
       const sid = transport.sessionId;
       if (sid) {
+        clearSessionTimer(sid);
         sessions.delete(sid);
       }
     };
