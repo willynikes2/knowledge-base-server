@@ -3,10 +3,12 @@ import { randomBytes } from 'crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { homedir, platform, release, type as osType } from 'os';
 import { join, resolve } from 'path';
+import { fileURLToPath } from 'url';
 import { execFileSync } from 'child_process';
 
 const HOME = homedir();
-const PROJECT_ROOT = resolve(new URL('.', import.meta.url).pathname, '..', '..');
+// fileURLToPath handles Windows drive letters correctly (avoids C:\C:\ duplication)
+const PROJECT_ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 
 // ---------------------------------------------------------------------------
 // Utility helpers
