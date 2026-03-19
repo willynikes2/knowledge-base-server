@@ -198,8 +198,14 @@ function renderDocumentList(docs) {
     // Title cell - may contain FTS snippet HTML with <mark> tags
     const tdTitle = document.createElement('td');
     if (isSearch && d.snippet) {
-      // Snippet comes from FTS with <mark> highlights - trusted server content
-      tdTitle.innerHTML = d.snippet;
+      // Sanitize: escape all HTML, then restore only <mark> and </mark>
+      const escaped = d.snippet
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      tdTitle.innerHTML = escaped
+        .replace(/&lt;mark&gt;/g, '<mark>')
+        .replace(/&lt;\/mark&gt;/g, '</mark>');
     } else {
       tdTitle.textContent = d.title;
     }

@@ -1,9 +1,17 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { loginHandler, logoutHandler, checkAuthHandler, authMiddleware, checkPassword, setPassword } from '../auth.js';
 
 const router = Router();
 
-router.post('/api/login', loginHandler);
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.post('/api/login', loginLimiter, loginHandler);
 router.post('/api/logout', logoutHandler);
 router.get('/api/auth/check', checkAuthHandler);
 

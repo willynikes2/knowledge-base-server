@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { writeFileSync, unlinkSync, existsSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { join, resolve } from 'path';
+import { tmpdir, homedir } from 'os';
 import { randomBytes } from 'crypto';
 
 import { authMiddleware } from '../auth.js';
@@ -125,10 +125,18 @@ router.post('/api/ingest-directory', async (req, res) => {
     if (!dirPath) {
       return res.status(400).json({ error: 'path is required' });
     }
-    if (!existsSync(dirPath)) {
+    const resolvedPath = resolve(dirPath);
+    const vaultPath = process.env.OBSIDIAN_VAULT_PATH;
+    const homeDir = homedir();
+    const underVault = vaultPath && resolvedPath.startsWith(resolve(vaultPath));
+    const underHome = resolvedPath.startsWith(homeDir);
+    if (!underVault && !underHome) {
+      return res.status(403).json({ error: 'Path not allowed' });
+    }
+    if (!existsSync(resolvedPath)) {
       return res.status(400).json({ error: `Path not found: ${dirPath}` });
     }
-    const result = await ingestDirectory(dirPath);
+    const result = await ingestDirectory(resolvedPath);
     return res.json(result);
   } catch (err) {
     return res.status(500).json({ error: err.message });
