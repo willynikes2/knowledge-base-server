@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import multer from 'multer';
+import busboy from 'busboy';
 import { writeFileSync, unlinkSync, existsSync } from 'fs';
 import { join, resolve } from 'path';
 import { tmpdir, homedir } from 'os';
@@ -18,7 +18,6 @@ import { ingestFile, ingestDirectory } from '../ingest.js';
 import { indexVault } from '../vault/indexer.js';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
 
 // All API routes require auth
 router.use('/api/documents', authMiddleware);
@@ -57,41 +56,62 @@ router.get('/api/documents/:id', (req, res) => {
 });
 
 // POST /api/documents — file upload
-router.post('/api/documents', upload.array('files'), async (req, res) => {
-  try {
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: 'No files uploaded' });
-    }
+router.post('/api/documents', (req, res) => {
+  const bb = busboy({ headers: req.headers });
+  const uploads = [];
+  let tags = '';
 
-    const documents = [];
-    const tags = req.body.tags || '';
+  bb.on('field', (name, val) => {
+    if (name === 'tags') tags = val;
+  });
 
-    for (const file of req.files) {
-      const tempName = `kb-upload-${randomBytes(8).toString('hex')}-${file.originalname}`;
-      const tempPath = join(tmpdir(), tempName);
+  bb.on('file', (fieldname, fileStream, info) => {
+    const { filename } = info;
+    const chunks = [];
+    fileStream.on('data', (chunk) => chunks.push(chunk));
+    fileStream.on('end', () => {
+      uploads.push({ filename, buffer: Buffer.concat(chunks) });
+    });
+  });
 
-      try {
-        writeFileSync(tempPath, file.buffer);
-        const doc = await ingestFile(tempPath);
-        if (doc) {
-          // Fix title and source to use original filename
-          const origName = file.originalname;
-          const title = origName.replace(/\.[^.]+$/, '');
-          updateDocument(doc.id, { title, tags: tags || doc.tags });
-          doc.title = title;
-          doc.source = origName;
-          if (tags) doc.tags = tags;
-          documents.push(doc);
-        }
-      } finally {
-        try { unlinkSync(tempPath); } catch {}
+  bb.on('finish', async () => {
+    try {
+      if (uploads.length === 0) {
+        return res.status(400).json({ error: 'No files uploaded' });
       }
-    }
 
-    return res.json({ documents });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
+      const documents = [];
+
+      for (const file of uploads) {
+        const tempName = `kb-upload-${randomBytes(8).toString('hex')}-${file.filename}`;
+        const tempPath = join(tmpdir(), tempName);
+
+        try {
+          writeFileSync(tempPath, file.buffer);
+          const doc = await ingestFile(tempPath);
+          if (doc) {
+            // Fix title and source to use original filename
+            const title = file.filename.replace(/\.[^.]+$/, '');
+            updateDocument(doc.id, { title, tags: tags || doc.tags });
+            doc.title = title;
+            doc.source = file.filename;
+            if (tags) doc.tags = tags;
+            documents.push(doc);
+          }
+        } finally {
+          try { unlinkSync(tempPath); } catch {}
+        }
+      }
+
+      return res.json({ documents });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  bb.on('error', (err) => res.status(500).json({ error: err.message }));
+
+  req.pipe(bb);
 });
 
 // PUT /api/documents/:id
