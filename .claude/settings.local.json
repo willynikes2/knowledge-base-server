@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__knowledge-base__kb_list"
+    ]
+  }
+}

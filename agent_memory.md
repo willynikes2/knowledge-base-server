@@ -1,0 +1,38 @@
+- Maintain persistent project memory in .agent-memory/. This directory survives across sessions and is the single source of truth for project state.
+  - MEMORY.md — compact index, always loaded at session start. Hard cap: 200 lines. Everything above line 200 is ignored.
+  - Topic files — detailed notes per subject. Never loaded automatically; read on-demand when relevant to the current task.
+- Required .agent-memory/ structure:
+  - MEMORY.md — project status, active features, critical conventions, known pitfalls, topic index.
+  - progress.md — chronological progress log (newest entries on top).
+  - architecture-decisions.md — ADR records with context, decision, rationale, consequences.
+  - conventions.md — code style, git workflow, testing, documentation rules.
+  - debugging-patterns.md — known bugs with symptom, cause, fix, and date discovered.
+  - environment.md — runtime requirements, setup steps, deployment, env var names (never values).
+- MEMORY.md must contain these sections in order:
+  - ## Status — current phase, blockers, next milestone.
+  - ## Active Features — list with [WIP], [DONE], or [BLOCKED] prefixes.
+  - ## Critical Conventions — max 10 lines, imperative voice only.
+  - ## Known Pitfalls — max 5 lines, things that broke before and must be avoided.
+  - ## Topic Index — one-line reference per topic file with brief description.
+- Write MEMORY.md in imperative style. Write "Use pnpm, NEVER npm" — not "The project uses pnpm as its package manager."
+- Memory system session protocol:
+  - On session start: read MEMORY.md in full. Check ## Status for blockers. Load only the topic files relevant to the current task.
+  - During session: write new patterns, bug fixes, and conventions to the appropriate topic file (never directly to MEMORY.md for detailed content). Update MEMORY.md only when project status changes, a feature changes state, a new critical convention or pitfall is discovered, or a new topic file is created.
+  - On session end: append to progress.md what was done this session. Update MEMORY.md ## Status and ## Active Features if changed. Remove stale entries. Ensure MEMORY.md stays under 200 lines.
+- Topic file rules:
+  - One subject per file. No monolithic files.
+  - Every topic file starts with a one-line summary of its contents.
+  - Timestamp significant entries with [YYYY-MM-DD].
+  - Periodically prune outdated information.
+  - Archive old progress entries to progress-archive-YYYY.md when progress.md grows too long.
+- Multi-agent conflict resolution:
+  - MEMORY.md uses last-write-wins. Minimize concurrent writes to it.
+  - Topic files are safer for concurrent edits since agents work on different topics.
+  - Use timestamps ([YYYY-MM-DD HH:MM]) on entries so ordering is unambiguous.
+  - On merge conflicts: keep the most recent entry and remove duplicates.
+- Memory anti-patterns (never do these):
+  - Do not use MEMORY.md as full documentation — it is an index, not a wiki.
+  - Do not load topic files unrelated to the current task — this wastes context.
+  - Do not store secrets, credentials, or env var values in any memory file.
+  - Do not let MEMORY.md go stale — outdated memory is worse than no memory.
+  - Do not write everything down — only persist information that would be lost between sessions and will be reused.
