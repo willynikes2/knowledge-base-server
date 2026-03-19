@@ -5,9 +5,9 @@ const router = Router();
 
 router.post('/api/login', loginHandler);
 router.post('/api/logout', logoutHandler);
-router.get('/api/auth/check', checkAuthHandler);
+router.get('/api/session/check', checkAuthHandler);
 
-router.put('/api/auth/password', authMiddleware, (req, res) => {
+router.put('/api/session/password', authMiddleware, (req, res) => {
   const { current, newPassword } = req.body || {};
   if (!current || !newPassword) {
     return res.status(400).json({ error: 'Both current and newPassword are required' });
