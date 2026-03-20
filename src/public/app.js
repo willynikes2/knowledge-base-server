@@ -38,7 +38,11 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     showApp();
   } else {
     const err = document.getElementById('login-error');
-    err.textContent = 'Invalid password';
+    if (res.status === 429) {
+      err.textContent = 'Too many login attempts. Please try again in 15 minutes.';
+    } else {
+      err.textContent = 'Invalid password';
+    }
     err.hidden = false;
   }
 });
