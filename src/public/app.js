@@ -341,7 +341,7 @@ document.getElementById('password-form').addEventListener('submit', async (e) =>
   e.preventDefault();
   const current = document.getElementById('current-password').value;
   const newPassword = document.getElementById('new-password').value;
-  const res = await fetch('/api/auth/password', {
+  const res = await fetch('/api/password', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ current: current, newPassword: newPassword }),
