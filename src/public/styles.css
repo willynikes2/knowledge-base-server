@@ -87,6 +87,10 @@ body {
   display: none;
 }
 
+.login-screen[hidden] {
+  display: none;
+}
+
 /* Sidebar */
 .sidebar {
   width: 220px;
