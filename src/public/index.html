@@ -13,7 +13,10 @@
       <h1>Knowledge Base</h1>
       <p>Enter your password to continue</p>
       <form id="login-form">
-        <input type="password" id="login-password" placeholder="Password" autofocus>
+        <div class="password-wrapper">
+          <input type="password" id="login-password" placeholder="Password" autofocus>
+          <button type="button" id="toggle-password" aria-label="Show password">Show</button>
+        </div>
         <button type="submit">Sign In</button>
       </form>
       <p id="login-error" class="error" hidden></p>

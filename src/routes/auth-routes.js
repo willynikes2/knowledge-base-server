@@ -15,7 +15,7 @@ const loginLimiter = rateLimit({
 
 router.post('/api/login', loginLimiter, loginHandler);
 router.post('/api/logout', logoutHandler);
-router.get('/api/auth/check', checkAuthHandler);
+router.get('/api/auth-check', checkAuthHandler);
 
 router.put('/api/auth/password', authMiddleware, (req, res) => {
   const { current, newPassword } = req.body || {};

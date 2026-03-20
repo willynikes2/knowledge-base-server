@@ -4,11 +4,15 @@ let currentDocId = null;
 
 // Init
 document.addEventListener('DOMContentLoaded', async () => {
-  const res = await fetch('/api/auth/check');
-  const data = await res.json();
-  if (data.authenticated) {
-    showApp();
-  } else {
+  try {
+    const res = await fetch('/api/auth-check');
+    const data = await res.json();
+    if (data.authenticated) {
+      showApp();
+    } else {
+      showLogin();
+    }
+  } catch {
     showLogin();
   }
 });
@@ -29,21 +33,39 @@ function showApp() {
 document.getElementById('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const password = document.getElementById('login-password').value;
-  const res = await fetch('/api/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password }),
-  });
-  if (res.ok) {
-    showApp();
-  } else {
-    const err = document.getElementById('login-error');
-    if (res.status === 429) {
-      err.textContent = 'Too many login attempts. Please try again in 15 minutes.';
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    if (res.ok) {
+      showApp();
     } else {
-      err.textContent = 'Invalid password';
+      const err = document.getElementById('login-error');
+      err.textContent = res.status === 429
+        ? 'Too many login attempts. Please try again in 15 minutes.'
+        : 'Invalid password';
+      err.hidden = false;
     }
-    err.hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+  }
+});
+
+document.getElementById('toggle-password').addEventListener('click', () => {
+  const input = document.getElementById('login-password');
+  const btn = document.getElementById('toggle-password');
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.textContent = 'Hide';
+  } else {
+    input.type = 'password';
+    btn.textContent = 'Show';
   }
 });
 
