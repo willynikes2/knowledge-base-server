@@ -77,17 +77,21 @@ export async function ingestFile(filePath) {
   return doc;
 }
 
-function collectFiles(dir) {
+const IGNORE_DIRS = new Set([
+  'node_modules', '.git', 'dist', 'build', '__pycache__',
+]);
+
+export function collectFiles(dir) {
   const results = [];
   const entries = readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
-    const fullPath = join(dir, entry.name);
     if (entry.isDirectory()) {
-      results.push(...collectFiles(fullPath));
+      if (IGNORE_DIRS.has(entry.name)) continue;
+      results.push(...collectFiles(join(dir, entry.name)));
     } else if (entry.isFile()) {
       const ext = extname(entry.name).toLowerCase();
       if (TYPE_MAP[ext]) {
-        results.push(fullPath);
+        results.push(join(dir, entry.name));
       }
     }
   }
