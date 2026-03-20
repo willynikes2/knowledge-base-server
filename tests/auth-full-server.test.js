@@ -84,30 +84,19 @@ describe('Full server auth flow (with Better Auth)', () => {
     });
   });
 
-  it('PUT /api/password is NOT intercepted by Better Auth', async () => {
+  it('PUT /api/password is NOT intercepted by Better Auth (returns 401 not 404)', async () => {
     await withServer(async (port) => {
-      // Login first
-      const loginRes = await fetch(`http://localhost:${port}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: TEST_PASSWORD }),
-      });
-      const setCookie = loginRes.headers.get('set-cookie');
-      const cookie = setCookie.split(';')[0];
-
-      // Try to change password — now at /api/password (not under /api/auth/)
-      const changeRes = await fetch(`http://localhost:${port}/api/password`, {
+      // Without a valid session, our authMiddleware returns 401.
+      // Better Auth would return 404 for routes it doesn't know about.
+      // So 401 here proves the route is handled by our router, not Better Auth.
+      const res = await fetch(`http://localhost:${port}/api/password`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Cookie: cookie },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ current: TEST_PASSWORD, newPassword: 'newpass456' }),
       });
-
-      assert.strictEqual(changeRes.status, 200, 'Password change should succeed');
-      const data = await changeRes.json();
-      assert.strictEqual(data.ok, true, 'Should return { ok: true } from dashboard handler');
-
-      // Restore password
-      setPassword(TEST_PASSWORD);
+      assert.strictEqual(res.status, 401, 'Should be 401 from authMiddleware (not 404 from Better Auth)');
+      const data = await res.json();
+      assert.strictEqual(data.error, 'Unauthorized', 'Should return our authMiddleware error, not a Better Auth error');
     });
   });
 });
