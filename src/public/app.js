@@ -29,7 +29,7 @@ function showApp() {
 document.getElementById('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const password = document.getElementById('login-password').value;
-  const res = await fetch('/api/login', {
+  const res = await fetch('/api/session/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password }),
@@ -63,7 +63,7 @@ function showSection(name) {
 
 // Logout
 document.getElementById('logout-btn').addEventListener('click', async () => {
-  await fetch('/api/logout', { method: 'POST' });
+  await fetch('/api/session/logout', { method: 'POST' });
   showLogin();
 });
 

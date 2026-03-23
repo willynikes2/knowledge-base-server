@@ -9,7 +9,7 @@ import { hasPassword, setPassword, promptPassword, authMiddleware } from './auth
 import { getDocumentCount } from './db.js';
 import { ingestDirectory } from './ingest.js';
 import cors from 'cors';
-import authRoutes from './routes/auth-routes.js';
+import authRoutes from './routes/session-routes.js';
 import apiRoutes from './routes/api.js';
 import { toNodeHandler } from 'better-auth/node';
 import { auth } from './auth-oauth.js';

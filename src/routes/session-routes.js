@@ -3,8 +3,8 @@ import { loginHandler, logoutHandler, checkAuthHandler, authMiddleware, checkPas
 
 const router = Router();
 
-router.post('/api/login', loginHandler);
-router.post('/api/logout', logoutHandler);
+router.post('/api/session/login', loginHandler);
+router.post('/api/session/logout', logoutHandler);
 router.get('/api/session/check', checkAuthHandler);
 
 router.put('/api/session/password', authMiddleware, (req, res) => {
