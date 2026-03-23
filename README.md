@@ -142,7 +142,8 @@ The loop in detail:
 
 **Core**
 - SQLite FTS5 full-text search with BM25 ranking and highlighted snippets
-- Semantic search via local HuggingFace embeddings (Xenova/all-MiniLM-L6-v2)
+- Semantic/vector search via local HuggingFace embeddings (Xenova/all-MiniLM-L6-v2) — no API keys needed
+- Hybrid search mode (`kb_search_smart`) combining keyword + semantic for conceptual queries
 - Web dashboard for browsing, searching, and managing documents
 - CLI for all operations (`kb start`, `kb search`, `kb ingest`, `kb setup`)
 - One-command MCP registration (`kb register`)
