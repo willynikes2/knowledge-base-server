@@ -10,10 +10,11 @@ Documentation=https://github.com/willynikes2/knowledge-base-server
 [Service]
 Type=simple
 User=<YOUR_USER>
-WorkingDirectory=<PATH_TO_KNOWLEDGE_BASE_SERVER>
+WorkingDirectory=<HOME>
 Environment="NODE_ENV=production"
 Environment="PATH=<PATH_TO_NODE_BIN_DIR>:/usr/local/bin:/usr/bin:/bin"
-ExecStart=<PATH_TO_NODE_BIN> <PATH_TO_KNOWLEDGE_BASE_SERVER>/bin/kb.js start
+ExecStart=<PATH_TO_KB_BINARY> start
+# Find kb path with: which kb
 Restart=on-failure
 RestartSec=5
 StartLimitBurst=5
@@ -27,7 +28,7 @@ SyslogIdentifier=kb-server
 # Security hardening
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=<HOME>/.knowledge-base <PATH_TO_KNOWLEDGE_BASE_SERVER> <OBSIDIAN_VAULT_PATH> <HOME>/knowledgebase /tmp
+ReadWritePaths=<HOME>/.knowledge-base <OBSIDIAN_VAULT_PATH> <HOME>/knowledgebase /tmp
 ProtectHome=false
 
 [Install]

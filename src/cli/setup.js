@@ -158,6 +158,14 @@ function buildEnvContent(cfg) {
 // ---------------------------------------------------------------------------
 
 function installSystemd() {
+  // Resolve kb binary path — use the actual resolved path, not just 'kb',
+  // because systemd PATH may not include npm bin directories
+  let kbBin;
+  try {
+    kbBin = execFileSync('which', ['kb'], { encoding: 'utf-8' }).trim();
+  } catch {
+    kbBin = 'kb'; // fallback — user will need to fix PATH in unit
+  }
   const unit = `[Unit]
 Description=Knowledge Base Server
 After=network.target
@@ -165,8 +173,8 @@ After=network.target
 [Service]
 Type=simple
 User=${process.env.USER || 'root'}
-WorkingDirectory=${PROJECT_ROOT}
-ExecStart=${process.execPath} ${join(PROJECT_ROOT, 'bin', 'kb.js')} start
+WorkingDirectory=${HOME}
+ExecStart=${kbBin} start
 Restart=on-failure
 RestartSec=5
 Environment=NODE_ENV=production
@@ -186,6 +194,12 @@ WantedBy=multi-user.target
 }
 
 function installLaunchd() {
+  let kbBin;
+  try {
+    kbBin = execFileSync('which', ['kb'], { encoding: 'utf-8' }).trim();
+  } catch {
+    kbBin = '/usr/local/bin/kb';
+  }
   const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -194,12 +208,11 @@ function installLaunchd() {
   <string>com.knowledgebase.server</string>
   <key>ProgramArguments</key>
   <array>
-    <string>${process.execPath}</string>
-    <string>${join(PROJECT_ROOT, 'bin', 'kb.js')}</string>
+    <string>${kbBin}</string>
     <string>start</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>${PROJECT_ROOT}</string>
+  <string>${HOME}</string>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
@@ -477,7 +490,7 @@ function applyConfig(cfg) {
   } else if (cfg.deploy === 'pm2') {
     results.steps.push({
       action: 'PM2 selected',
-      hint: 'Run: pm2 start bin/kb.js --name knowledge-base -- start',
+      hint: 'Run: pm2 start $(which kb) --name knowledge-base -- start',
     });
   }
 
