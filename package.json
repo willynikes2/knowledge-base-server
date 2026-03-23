@@ -6,7 +6,12 @@
   "bin": {
     "kb": "./bin/kb.js"
   },
-  "main": "./src/index.js",
+  "main": "./src/server.js",
+  "files": [
+    "bin/",
+    "src/",
+    "openapi.json"
+  ],
   "engines": {
     "node": ">=18.0.0"
   },

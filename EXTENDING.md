@@ -321,7 +321,7 @@ journalctl -u kb-server -f
 - `ProtectSystem=strict` and `NoNewPrivileges=true` for security hardening
 - `Restart=on-failure` with 5 attempts per 60 seconds
 
-Environment variables should be set in a `.env` file in the project root (loaded by `dotenv/config`).
+Environment variables should be set in `~/.knowledge-base/.env` (loaded automatically on startup). Run `kb setup` to generate this file.
 
 ### Recipe 5: Add New Ingestion Source Type
 
