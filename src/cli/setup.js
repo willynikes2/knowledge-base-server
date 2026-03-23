@@ -3,12 +3,16 @@ import { randomBytes } from 'crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { homedir, platform, release, type as osType } from 'os';
 import { join, resolve } from 'path';
-import { fileURLToPath } from 'url';
 import { execFileSync } from 'child_process';
+import { KB_DIR, ENV_PATH } from '../paths.js';
 
 const HOME = homedir();
-// fileURLToPath handles Windows drive letters correctly (avoids C:\C:\ duplication)
-const PROJECT_ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
+
+function isNpx() {
+  return !!(process.env.npm_execpath?.includes('npx') ||
+    process.argv[1]?.includes('.npm/_npx') ||
+    process.argv[1]?.includes('node_modules/.cache'));
+}
 
 // ---------------------------------------------------------------------------
 // Utility helpers
@@ -217,20 +221,21 @@ function generateDockerCompose(cfg) {
   const content = `version: "3.8"
 services:
   knowledge-base:
-    build: .
+    image: node:22-slim
+    command: ["npx", "knowledge-base-server", "start"]
     ports:
       - "${cfg.port}:${cfg.port}"
     volumes:
       - kb-data:/root/.knowledge-base
 ${cfg.vaultPath ? `      - ${cfg.vaultPath}:/vault` : ''}
-    env_file:
-      - .env
+    environment:
+      - NODE_ENV=production
     restart: unless-stopped
 
 volumes:
   kb-data:
 `;
-  const composePath = join(PROJECT_ROOT, 'docker-compose.yml');
+  const composePath = join(KB_DIR, 'docker-compose.yml');
   writeFileSync(composePath, content);
   return composePath;
 }
@@ -308,7 +313,7 @@ function parseAutoArgs(args) {
 }
 
 function loadConfigFile() {
-  const configPath = join(PROJECT_ROOT, 'setup-config.json');
+  const configPath = join(KB_DIR, 'setup-config.json');
   if (!existsSync(configPath)) return null;
   try {
     return JSON.parse(readFileSync(configPath, 'utf-8'));
@@ -419,7 +424,7 @@ function applyConfig(cfg) {
 
   // 1. Write .env
   const envContent = buildEnvContent(cfg);
-  const envPath = join(PROJECT_ROOT, '.env');
+  const envPath = ENV_PATH;
   const envExisted = existsSync(envPath);
   writeFileSync(envPath, envContent);
   results.steps.push({
@@ -440,6 +445,14 @@ function applyConfig(cfg) {
   }
 
   // 3. Install service
+  // Warn npx users about persistent service limitations
+  if (isNpx() && cfg.deploy !== 'manual' && cfg.deploy !== 'docker') {
+    results.steps.push({
+      action: 'Warning: npx detected',
+      hint: 'Persistent services (systemd/launchd/PM2) require a global install: npm i -g knowledge-base-server. The npx cache is ephemeral.',
+    });
+  }
+
   if (cfg.deploy === 'systemd') {
     const r = installSystemd();
     if (r.ok) {
