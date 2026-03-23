@@ -2,7 +2,7 @@
 // Weekly synthesis job — run via cron or manually
 // Generates a synthesis prompt note that can be processed by an AI agent
 
-import 'dotenv/config';
+import '../src/paths.js'; // loads .env from ~/.knowledge-base/.env
 import { getRecentNotes, generateSynthesisPrompt, writeSynthesisNote } from '../src/synthesis/weekly-review.js';
 
 import { homedir } from 'os';
