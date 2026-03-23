@@ -207,6 +207,52 @@ Set `CLASSIFY_MODEL` env var. The classifier spawns the `claude` CLI binary, so 
 **To swap embedding models:**
 Change the model name in `getEmbedder()` in `embed.js`. Any HuggingFace `feature-extraction` pipeline model works. Update the `dimensions` value in the embeddings table accordingly.
 
+### Using Search -- Quick Reference
+
+The KB has three search modes. Use the right one for the job:
+
+**1. Keyword search (`kb_search`)** -- fast, exact matching
+```
+# MCP tool
+kb_search({ query: "docker networking" })
+
+# REST API
+GET /api/v1/search?q=docker+networking
+
+# CLI
+kb search "docker networking"
+```
+Best for: exact terms, error messages, specific names. Uses FTS5 with BM25 ranking and title boosting.
+
+**2. Semantic/hybrid search (`kb_search_smart`)** -- finds conceptually related docs
+```
+# MCP tool
+kb_search_smart({ query: "how do containers talk to each other" })
+
+# REST API
+GET /api/v1/search/smart?q=how+do+containers+talk+to+each+other
+```
+Best for: natural language questions, paraphrases, "I know it's in here but I can't remember the exact words." Combines FTS5 keyword results with cosine similarity over local embeddings (Xenova/all-MiniLM-L6-v2, 384 dimensions). No API keys or external calls -- runs entirely on your machine.
+
+**3. Context briefing (`kb_context`)** -- token-efficient summaries
+```
+# MCP tool
+kb_context({ query: "authentication architecture" })
+
+# REST API
+GET /api/v1/context?q=authentication+architecture
+```
+Best for: getting up to speed on a topic without burning tokens on full documents. Returns a synthesized briefing with source citations. Use this first, then `kb_read` for docs that need deeper reading.
+
+**When to use which:**
+
+| Situation | Use |
+|-----------|-----|
+| Know the exact term or error message | `kb_search` |
+| Searching by concept, not exact words | `kb_search_smart` |
+| Need a quick overview before diving in | `kb_context` |
+| Need full document content | `kb_context` first, then `kb_read` by ID |
+
 ### src/auth.js -- Swapping Auth Providers
 
 Dashboard auth uses bcrypt password hashing with session cookies. The session store is in-memory (Map).
