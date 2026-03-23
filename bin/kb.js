@@ -2,7 +2,7 @@
 // bin/kb.js — CLI entry point
 // Commands: start, stop, mcp, register, ingest <path>, search <query>, status, setup
 
-import 'dotenv/config';
+import '../src/paths.js'; // loads .env from ~/.knowledge-base/.env
 
 const command = process.argv[2];
 const args = process.argv.slice(3);
@@ -14,6 +14,7 @@ const commands = {
   register: () => import('../src/cli/register.js').then(m => m.register()),
   ingest:   () => import('../src/cli/ingest-cli.js').then(m => m.ingest(args[0])),
   search:   () => import('../src/cli/search-cli.js').then(m => m.search(args.join(' '))),
+  'token-compare': () => import('../src/cli/token-compare.js').then(m => m.tokenCompare(args)),
   status:   () => import('../src/cli/status.js').then(m => m.status()),
   'capture-x': () => import('../src/capture/x-bookmarks.js').then(m => {
     const bookmarksPath = args[0] || (process.env.HOME + '/knowledgebase/x_bookmarks.md');
@@ -74,6 +75,7 @@ Commands:
   register           Register MCP server with Claude Code
   ingest <path>      Ingest a file or directory
   search <query>     Search documents
+  token-compare      Compare raw-doc vs KB-summary token cost
   status             Show stats and server status
   vault reindex      Reindex Obsidian vault
   classify           Auto-classify new clippings/inbox notes (--dry-run to preview)

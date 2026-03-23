@@ -33,10 +33,10 @@ Documentation=https://github.com/willynikes2/knowledge-base-server
 [Service]
 Type=simple
 User=$KB_USER
-WorkingDirectory=$SCRIPT_DIR
+WorkingDirectory=$KB_HOME
 Environment="NODE_ENV=production"
 Environment="PATH=$NODE_DIR:/usr/local/bin:/usr/bin:/bin"
-ExecStart=$NODE_BIN $SCRIPT_DIR/bin/kb.js start
+ExecStart=$(which kb 2>/dev/null || echo "$NODE_BIN $SCRIPT_DIR/bin/kb.js") start
 Restart=on-failure
 RestartSec=5
 StartLimitBurst=5
@@ -50,7 +50,7 @@ SyslogIdentifier=kb-server
 # Security hardening
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=$KB_HOME/.knowledge-base $SCRIPT_DIR $VAULT_PATH $KB_HOME/knowledgebase /tmp
+ReadWritePaths=$KB_HOME/.knowledge-base $KB_HOME $VAULT_PATH $KB_HOME/knowledgebase /tmp
 ProtectHome=false
 
 [Install]
