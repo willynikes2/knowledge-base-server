@@ -4,7 +4,7 @@ let currentDocId = null;
 
 // Init
 document.addEventListener('DOMContentLoaded', async () => {
-  const res = await fetch('/api/auth/check');
+  const res = await fetch('/api/session/check');
   const data = await res.json();
   if (data.authenticated) {
     showApp();
@@ -29,7 +29,7 @@ function showApp() {
 document.getElementById('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const password = document.getElementById('login-password').value;
-  const res = await fetch('/api/login', {
+  const res = await fetch('/api/session/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password }),
@@ -63,7 +63,7 @@ function showSection(name) {
 
 // Logout
 document.getElementById('logout-btn').addEventListener('click', async () => {
-  await fetch('/api/logout', { method: 'POST' });
+  await fetch('/api/session/logout', { method: 'POST' });
   showLogin();
 });
 
@@ -309,7 +309,7 @@ document.getElementById('password-form').addEventListener('submit', async (e) =>
   e.preventDefault();
   const current = document.getElementById('current-password').value;
   const newPassword = document.getElementById('new-password').value;
-  const res = await fetch('/api/auth/password', {
+  const res = await fetch('/api/session/password', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ current: current, newPassword: newPassword }),
