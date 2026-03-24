@@ -1,5 +1,6 @@
 import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { formatYamlTags } from '../utils/frontmatter.js';
 
 export function captureYouTube({ title, url, transcript, channel, tags }, vaultPath) {
   const destDir = join(vaultPath, 'sources', 'youtube');
@@ -26,7 +27,7 @@ export function captureYouTube({ title, url, transcript, channel, tags }, vaultP
     channel ? `channel: "${channel}"` : null,
     `created: "${date}"`,
     `updated: "${date}"`,
-    `tags: [${tagList.join(', ')}]`,
+    formatYamlTags(tagList),
     `status: inbox`,
     '---',
   ].filter(Boolean).join('\n');

@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { formatYamlTags } from '../utils/frontmatter.js';
 
 export function parseXBookmarks(bookmarksPath) {
   const content = readFileSync(bookmarksPath, 'utf-8');
@@ -51,7 +52,7 @@ export function captureXBookmarks(bookmarksPath, vaultPath) {
       bm.url ? `url: "${bm.url}"` : null,
       `created: "${date}"`,
       `updated: "${date}"`,
-      `tags: [x, bookmark]`,
+      formatYamlTags(['x', 'bookmark']),
       `status: inbox`,
       '---',
     ].filter(Boolean).join('\n');

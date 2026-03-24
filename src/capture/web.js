@@ -1,5 +1,6 @@
 import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { formatYamlTags } from '../utils/frontmatter.js';
 
 export function captureWeb({ title, url, content, tags, project }, vaultPath) {
   const destDir = join(vaultPath, 'sources', 'web');
@@ -25,7 +26,7 @@ export function captureWeb({ title, url, content, tags, project }, vaultPath) {
     `url: "${url}"`,
     `created: "${date}"`,
     `updated: "${date}"`,
-    `tags: [${tagList.join(', ')}]`,
+    formatYamlTags(tagList),
     project ? `project: ${project}` : null,
     `status: inbox`,
     '---',
