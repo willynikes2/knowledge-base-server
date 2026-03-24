@@ -8,6 +8,7 @@
 import { getDb, getAllVaultPaths } from '../db.js';
 import { indexVault } from '../vault/indexer.js';
 import { mkdirSync, writeFileSync, existsSync } from 'fs';
+import { formatYamlTags } from '../utils/frontmatter.js';
 import { join, dirname } from 'path';
 
 import { homedir } from 'os';
@@ -127,7 +128,7 @@ function buildFrontmatter(doc, noteType) {
 
   const tagList = (doc.tags || '').split(',').map(t => t.trim()).filter(Boolean);
   if (tagList.length > 0) {
-    lines.push(`tags: [${tagList.join(', ')}]`);
+    lines.push(formatYamlTags(tagList));
   } else {
     // Infer basic tags from doc characteristics
     const inferred = [];
@@ -136,7 +137,7 @@ function buildFrontmatter(doc, noteType) {
     else if (doc.doc_type === 'code') inferred.push('code');
     else if (doc.doc_type === 'text') inferred.push('reference');
     if (inferred.length > 0) {
-      lines.push(`tags: [${inferred.join(', ')}]`);
+      lines.push(formatYamlTags(inferred));
     }
   }
 

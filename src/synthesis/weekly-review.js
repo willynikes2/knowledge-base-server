@@ -2,6 +2,7 @@ import { getDb } from '../db.js';
 import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { parseVaultNote } from '../vault/parser.js';
+import { formatYamlTags } from '../utils/frontmatter.js';
 
 export function getRecentNotes(vaultPath, days = 7) {
   const cutoff = new Date(Date.now() - days * 86400000).toISOString();
@@ -70,7 +71,7 @@ export function writeSynthesisNote(content, vaultPath) {
     `type: synthesis`,
     `created: "${date}"`,
     `updated: "${date}"`,
-    `tags: [synthesis, weekly, meta]`,
+    formatYamlTags(['synthesis', 'weekly', 'meta']),
     `status: active`,
     '---',
   ].join('\n');

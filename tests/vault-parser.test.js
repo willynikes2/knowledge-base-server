@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { parseVaultNote } from '../src/vault/parser.js';
+import { formatYamlTags } from '../src/utils/frontmatter.js';
 
 describe('parseVaultNote', () => {
   it('should extract frontmatter and body', () => {
@@ -50,5 +51,21 @@ More content here.`;
     const content = '---\ntags: "ai, agents, workflow"\n---\nBody';
     const result = parseVaultNote(content, 'test.md');
     assert.deepStrictEqual(result.tags, ['ai', 'agents', 'workflow']);
+  });
+
+  it('should round-trip block-list tags through parser', () => {
+    const tags = ['ai', 'agents', 'knowledge-base'];
+    const tagYaml = formatYamlTags(tags);
+    const content = `---\ntitle: "Test"\n${tagYaml}\n---\nBody content`;
+    const result = parseVaultNote(content, 'test.md');
+    assert.deepStrictEqual(result.tags, ['ai', 'agents', 'knowledge-base']);
+  });
+
+  it('should round-trip block-list tags via fm array join pattern', () => {
+    const tagLines = formatYamlTags(['web', 'capture']);
+    const fm = ['---', 'title: "Test"', 'type: source', tagLines, 'status: inbox', '---'].join('\n');
+    const result = parseVaultNote(fm + '\n\nBody', 'test.md');
+    assert.deepStrictEqual(result.tags, ['web', 'capture']);
+    assert.strictEqual(result.title, 'Test');
   });
 });

@@ -1,5 +1,6 @@
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { formatYamlTags } from '../utils/frontmatter.js';
 
 const SECRET_PATTERNS = [
   /(?:api[_-]?key|apikey|token|secret|password|passwd|bearer)\s*[=:]\s*['"]?([^\s'"]{8,})/gi,
@@ -38,7 +39,7 @@ export function captureSession({ goal, commands_failed, commands_worked, root_ca
     `updated: "${date}"`,
     project ? `project: ${project}` : null,
     machine ? `machine: ${machine}` : null,
-    `tags: [terminal, session]`,
+    formatYamlTags(['terminal', 'session']),
     `status: active`,
     '---',
   ].filter(Boolean).join('\n');
@@ -71,7 +72,7 @@ export function captureFix({ title, symptom, cause, resolution, commands, projec
     `updated: "${date}"`,
     project ? `project: ${project}` : null,
     stack ? `stack: ${stack}` : null,
-    `tags: [fix, terminal]`,
+    formatYamlTags(['fix', 'terminal']),
     `status: active`,
     '---',
   ].filter(Boolean).join('\n');
