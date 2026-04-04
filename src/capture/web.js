@@ -15,8 +15,8 @@ export function captureWeb({ title, url, content, tags, project }, vaultPath) {
     return { created: false, path: `sources/web/${filename}` };
   }
 
-  const tagList = tags ? (Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim())) : [];
-  tagList.push('web');
+  const tagList = tags ? (Array.isArray(tags) ? [...tags] : tags.split(',').map(t => t.trim())) : [];
+  if (!tagList.includes('web')) tagList.push('web');
 
   const fm = [
     '---',
