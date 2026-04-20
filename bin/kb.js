@@ -12,7 +12,7 @@ const commands = {
   stop:     () => import('../src/cli/stop.js').then(m => m.stop()),
   mcp:      () => import('../src/mcp.js').then(m => m.start()),
   register: () => import('../src/cli/register.js').then(m => m.register()),
-  ingest:   () => import('../src/cli/ingest-cli.js').then(m => m.ingest(args[0])),
+  ingest:   () => import('../src/cli/ingest-cli.js').then(m => m.ingest(args)),
   search:   () => import('../src/cli/search-cli.js').then(m => m.search(args.join(' '))),
   'token-compare': () => import('../src/cli/token-compare.js').then(m => m.tokenCompare(args)),
   status:   () => import('../src/cli/status.js').then(m => m.status()),
@@ -63,6 +63,8 @@ const commands = {
     console.log('Usage: kb vault reindex');
     process.exit(1);
   },
+  export:   () => import('../src/cli/export-cli.js').then(m => m.exportCmd(args)),
+  restore:  () => import('../src/cli/restore-cli.js').then(m => m.restoreCmd(args)),
 };
 
 if (!command || !commands[command]) {
@@ -81,6 +83,8 @@ Commands:
   classify           Auto-classify new clippings/inbox notes (--dry-run to preview)
   summarize          Add AI summaries to docs without them (--dry-run, --limit=N)
   capture-x [path]   Capture X/Twitter bookmarks to vault
+  export             Export vault docs to a portable bundle (--out=dir, --dry-run, --json)
+  restore <bundle>   Restore from a bundle (--dry-run, --overwrite, --yes, --strict, --no-embeddings)
   setup              Interactive setup wizard (--auto for agent mode)
 `);
   process.exit(command ? 1 : 0);
