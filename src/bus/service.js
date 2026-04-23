@@ -1,6 +1,8 @@
 import { getBusDb } from './db.js';
 import { getBusPollMs, getBusResourceLimit, getBusRetentionMessages } from './config.js';
 
+const busListeners = new Set();
+
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -40,6 +42,17 @@ function normalizeSince(since) {
   return Math.floor(value);
 }
 
+function emitBusMessage(message) {
+  for (const listener of busListeners) {
+    listener(message);
+  }
+}
+
+export function onBusMessage(listener) {
+  busListeners.add(listener);
+  return () => busListeners.delete(listener);
+}
+
 export function sendBusMessage({ channel, sender, message, kind = 'message', metadata_json }) {
   const db = getBusDb();
   const cleanChannel = requireText(channel, 'channel');
@@ -54,7 +67,9 @@ export function sendBusMessage({ channel, sender, message, kind = 'message', met
   `).run(cleanChannel, cleanSender, cleanKind, cleanMessage, metadata);
 
   pruneChannel(cleanChannel);
-  return getMessageById(result.lastInsertRowid);
+  const created = getMessageById(result.lastInsertRowid);
+  emitBusMessage(created);
+  return created;
 }
 
 function pruneChannel(channel) {

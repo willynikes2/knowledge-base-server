@@ -45,11 +45,16 @@ Use the returned `next_since` as the next cursor.
 
 `bus://ticket:PF-1884` returns the latest messages for that channel as JSON.
 
-If your MCP host supports resource subscriptions, you can subscribe to that URI. In practice, **V1 should still assume poll or long-poll**:
+If your MCP host supports resource subscriptions, you can subscribe to that URI.
 
-- external `bus-send` writes to SQLite directly
-- a running stdio MCP child process cannot be woken by that external process
-- `bus_wait` is the reliable wakeup primitive today
+The stdio server now emits `notifications/resources/updated` for `bus://<channel>` when:
+
+- a message is sent through the same MCP process, and
+- the local bus SQLite files change due to external CLI writers
+
+That means subscribed hosts can get **best-effort local push** instead of relying only on `bus_wait`.
+
+Still keep `bus_wait` as fallback because client support varies and some hosts may not subscribe to resources automatically.
 
 ## Storage / retention
 

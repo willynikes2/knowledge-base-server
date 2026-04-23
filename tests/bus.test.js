@@ -6,7 +6,8 @@ import { join } from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { closeBusDb } from '../src/bus/db.js';
-import { getBusInbox, sendBusMessage, waitForBusInbox } from '../src/bus/service.js';
+import { getBusInbox, onBusMessage, sendBusMessage, waitForBusInbox } from '../src/bus/service.js';
+import { diffBusChannelUris } from '../src/bus/notifier.js';
 
 const execFileAsync = promisify(execFile);
 const tempDirs = [];
@@ -106,5 +107,33 @@ describe('message bus service', () => {
     assert.strictEqual(inbox.count, 1);
     assert.strictEqual(inbox.messages[0].sender, 'codex');
     assert.strictEqual(inbox.messages[0].kind, 'result');
+  });
+
+  it('emits in-process message notifications', async () => {
+    makeBusHome();
+
+    const seen = [];
+    const stop = onBusMessage(message => seen.push(message));
+    try {
+      sendBusMessage({ channel: 'ticket:PF-1884', sender: 'codex:test', message: 'hello' });
+    } finally {
+      stop();
+    }
+
+    assert.strictEqual(seen.length, 1);
+    assert.strictEqual(seen[0].channel, 'ticket:PF-1884');
+    assert.strictEqual(seen[0].body, 'hello');
+  });
+});
+
+describe('bus notifier diffing', () => {
+  it('returns URIs for channels whose latest id changed', () => {
+    const previous = new Map([['ticket:PF-1884', 1], ['session:abc', 2]]);
+    const next = new Map([['ticket:PF-1884', 2], ['session:abc', 2], ['swarm:test', 1]]);
+
+    assert.deepStrictEqual(
+      diffBusChannelUris(previous, next).sort(),
+      ['bus://swarm:test', 'bus://ticket:PF-1884'],
+    );
   });
 });
