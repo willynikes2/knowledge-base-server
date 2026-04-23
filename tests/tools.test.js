@@ -6,7 +6,7 @@ describe('tools', () => {
   it('exports an array of tool definitions', () => {
     const tools = getToolDefinitions();
     assert.ok(Array.isArray(tools));
-    assert.ok(tools.length >= 16);
+    assert.ok(tools.length >= 19);
   });
 
   it('each tool has name, description, schema, handler', () => {
@@ -23,6 +23,7 @@ describe('tools', () => {
     const tools = getToolDefinitions();
     const names = tools.map(t => t.name);
     const expected = [
+      'bus_send', 'bus_inbox', 'bus_wait',
       'kb_search', 'kb_list', 'kb_read', 'kb_ingest',
       'kb_write', 'kb_vault_status', 'kb_capture_youtube',
       'kb_capture_web', 'kb_capture_session', 'kb_capture_fix',
@@ -42,6 +43,9 @@ describe('tools', () => {
     assert.ok(!names.includes('kb_synthesize'));
     assert.ok(!names.includes('kb_safety_check'));
     assert.ok(!names.includes('kb_capture_youtube'));
+    assert.ok(!names.includes('bus_send'));
+    assert.ok(!names.includes('bus_inbox'));
+    assert.ok(!names.includes('bus_wait'));
     // Should still include read + limited write tools
     assert.ok(names.includes('kb_search'));
     assert.ok(names.includes('kb_ingest'));
