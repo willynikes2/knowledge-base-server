@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { registerBusResources } from './bus/resources.js';
 import { getToolDefinitions } from './tools.js';
 
 export async function start() {
@@ -12,6 +13,7 @@ export async function start() {
   for (const tool of getToolDefinitions()) {
     server.tool(tool.name, tool.description, tool.schema, tool.handler);
   }
+  registerBusResources(server);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

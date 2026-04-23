@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // bin/kb.js — CLI entry point
-// Commands: start, stop, mcp, register, ingest <path>, search <query>, status, setup
+// Commands: start, stop, mcp, register, ingest <path>, search <query>, status, setup, bus-send, bus-inbox, bus-wait
 
 import '../src/paths.js'; // loads .env from ~/.knowledge-base/.env
 
@@ -11,11 +11,14 @@ const commands = {
   start:    () => import('../src/server.js').then(m => m.start()),
   stop:     () => import('../src/cli/stop.js').then(m => m.stop()),
   mcp:      () => import('../src/mcp.js').then(m => m.start()),
-  register: () => import('../src/cli/register.js').then(m => m.register()),
+  register: () => import('../src/cli/register.js').then(m => m.register(args)),
   ingest:   () => import('../src/cli/ingest-cli.js').then(m => m.ingest(args[0])),
   search:   () => import('../src/cli/search-cli.js').then(m => m.search(args.join(' '))),
   'token-compare': () => import('../src/cli/token-compare.js').then(m => m.tokenCompare(args)),
   status:   () => import('../src/cli/status.js').then(m => m.status()),
+  'bus-send': () => import('../src/bus/cli.js').then(m => m.runBusSendCli(args)),
+  'bus-inbox': () => import('../src/bus/cli.js').then(m => m.runBusInboxCli(args)),
+  'bus-wait': () => import('../src/bus/cli.js').then(m => m.runBusWaitCli(args)),
   'capture-x': () => import('../src/capture/x-bookmarks.js').then(m => {
     const bookmarksPath = args[0] || (process.env.HOME + '/knowledgebase/x_bookmarks.md');
     const vaultPath = process.env.OBSIDIAN_VAULT_PATH;
@@ -72,11 +75,14 @@ Commands:
   start              Start the dashboard server (default :3838)
   stop               Stop the running server
   mcp                Start MCP stdio server (used by AI tools)
-  register           Register MCP server with Claude Code
+  register           Register MCP server with Claude/Codex/Gemini (--agents=claude,codex)
   ingest <path>      Ingest a file or directory
   search <query>     Search documents
   token-compare      Compare raw-doc vs KB-summary token cost
   status             Show stats and server status
+  bus-send           Send a local message bus message
+  bus-inbox          Read messages from a local message bus channel
+  bus-wait           Long-poll a local message bus channel
   vault reindex      Reindex Obsidian vault
   classify           Auto-classify new clippings/inbox notes (--dry-run to preview)
   summarize          Add AI summaries to docs without them (--dry-run, --limit=N)

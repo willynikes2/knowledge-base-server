@@ -1,24 +1,16 @@
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { homedir } from 'os';
-import { join } from 'path';
+import { parseRegisterArgs, registerAgents } from './mcp-register.js';
 
-export function register() {
-  const claudeJsonPath = join(homedir(), '.claude.json');
+export function register(args = []) {
+  const agents = parseRegisterArgs(args);
+  const results = registerAgents(agents);
 
-  let config = {};
-  if (existsSync(claudeJsonPath)) {
-    config = JSON.parse(readFileSync(claudeJsonPath, 'utf-8'));
+  console.log('MCP server registered for:');
+  for (const result of results) {
+    console.log(`- ${result.agent}: ${result.path}`);
   }
-
-  if (!config.mcpServers) config.mcpServers = {};
-
-  config.mcpServers['knowledge-base'] = {
-    command: 'kb',
-    args: ['mcp'],
-  };
-
-  writeFileSync(claudeJsonPath, JSON.stringify(config, null, 2));
-  console.log('MCP server registered in ~/.claude.json');
-  console.log('Restart Claude Code to activate the knowledge-base tools.');
-  console.log('Tools available: kb_search, kb_list, kb_read, kb_ingest');
+  console.log('');
+  console.log('Restart these local agent sessions to activate the updated knowledge-base tools.');
+  console.log('Core tools: kb_search, kb_list, kb_read, kb_ingest, ...');
+  console.log('Local-only bus tools: bus_send, bus_inbox, bus_wait');
+  console.log('Long-lived sessions that cannot restart can still use the CLI fallback: bus-send / bus-inbox / bus-wait');
 }

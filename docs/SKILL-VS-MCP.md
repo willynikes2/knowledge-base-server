@@ -8,7 +8,7 @@ This project ships two ways to use it. They solve different problems and work be
 
 **How it works:** Your agent decides when to call a tool. It sends a request ("search for X"), gets back results, and uses them. No tokens are spent until a tool is called.
 
-**Install:** `kb register` adds it to Claude Code. For other agents, point your MCP config at `kb mcp`.
+**Install:** `kb register` adds it to Claude Code, Codex, and Gemini. You can limit targets with `kb register --agents=claude,codex`.
 
 **Token cost:** ~500 tokens for tool definitions (always in context) + whatever results come back per call.
 
@@ -57,7 +57,7 @@ git clone https://github.com/willynikes2/knowledge-base-server.git
 cd knowledge-base-server
 npm install && npm link
 kb setup
-kb register   # Registers MCP tools with Claude Code
+kb register   # Registers MCP tools with Claude Code, Codex, and Gemini
 ```
 
 Your agent now has all 16 KB tools.
@@ -86,7 +86,7 @@ The skill is just a markdown file. Include its content in your agent's system pr
 
 | Platform | MCP Server | Skill |
 |----------|-----------|-------|
-| Claude Code | `kb register` | Copy to skills dir |
+| Claude Code / Codex / Gemini | `kb register` | Copy to skills dir |
 | Claude Web | Connect via remote MCP | Not applicable (use custom instructions) |
 | ChatGPT | Import OpenAPI spec | Add to Custom GPT instructions |
 | Codex CLI | MCP config in `.codex/mcp.json` | Add to `instructions.md` |
