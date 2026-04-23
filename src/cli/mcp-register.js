@@ -1,12 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
+import { fileURLToPath } from 'url';
 
 export const SUPPORTED_AGENTS = ['claude', 'codex', 'gemini'];
 export const KB_MCP_SERVER_NAME = 'knowledge-base';
+export const KB_ENTRYPOINT_PATH = fileURLToPath(new URL('../../bin/kb.js', import.meta.url));
 export const KB_MCP_SERVER_CONFIG = {
-  command: 'kb',
-  args: ['mcp'],
+  command: process.execPath,
+  args: [KB_ENTRYPOINT_PATH, 'mcp'],
 };
 
 function readJson(path) {

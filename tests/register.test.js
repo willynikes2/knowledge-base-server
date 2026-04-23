@@ -3,7 +3,12 @@ import assert from 'node:assert';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { getAgentConfigPath, parseRegisterArgs, registerAgents } from '../src/cli/mcp-register.js';
+import {
+  getAgentConfigPath,
+  KB_ENTRYPOINT_PATH,
+  parseRegisterArgs,
+  registerAgents,
+} from '../src/cli/mcp-register.js';
 
 const tempDirs = [];
 
@@ -42,7 +47,13 @@ describe('MCP registration', () => {
     const claudeConfig = JSON.parse(readFileSync(getAgentConfigPath('claude', homeDir), 'utf-8'));
     const codexConfig = JSON.parse(readFileSync(getAgentConfigPath('codex', homeDir), 'utf-8'));
 
-    assert.deepStrictEqual(claudeConfig.mcpServers['knowledge-base'], { command: 'kb', args: ['mcp'] });
-    assert.deepStrictEqual(codexConfig.mcpServers['knowledge-base'], { command: 'kb', args: ['mcp'] });
+    assert.deepStrictEqual(claudeConfig.mcpServers['knowledge-base'], {
+      command: process.execPath,
+      args: [KB_ENTRYPOINT_PATH, 'mcp'],
+    });
+    assert.deepStrictEqual(codexConfig.mcpServers['knowledge-base'], {
+      command: process.execPath,
+      args: [KB_ENTRYPOINT_PATH, 'mcp'],
+    });
   });
 });
