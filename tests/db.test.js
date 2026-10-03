@@ -31,4 +31,29 @@ describe('vault_files schema', () => {
     assert.strictEqual(row.note_type, 'research');
     assert.strictEqual(row.project, 'kb-system');
   });
+
+  it('migrates older documents tables missing source', () => {
+    const legacyDb = new Database(':memory:');
+    try {
+      legacyDb.exec(`
+        CREATE TABLE documents (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT NOT NULL,
+          content TEXT NOT NULL,
+          doc_type TEXT NOT NULL,
+          tags TEXT DEFAULT '',
+          file_path TEXT,
+          file_size INTEGER DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      initSchema(legacyDb);
+      const cols = legacyDb.prepare("PRAGMA table_info(documents)").all().map(c => c.name);
+      assert.ok(cols.includes('source'));
+    } finally {
+      legacyDb.close();
+    }
+  });
 });

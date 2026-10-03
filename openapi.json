@@ -424,6 +424,68 @@
         }
       }
     },
+    "/api/v1/ingest/image": {
+      "post": {
+        "operationId": "ingestImage",
+        "summary": "Upload and ingest an image into the knowledge base",
+        "description": "Upload an image file (PNG, JPEG, GIF, WebP, BMP, SVG). The image is processed with AI vision to extract text, UI elements, code, and a searchable description. The extracted content is stored as a document. Max 20 MB. Use this when the user wants to save a screenshot, diagram, or photo to the knowledge base.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["image"],
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The image file to upload"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "Title for the document. Defaults to the filename."
+                  },
+                  "note": {
+                    "type": "string",
+                    "description": "Optional user note prepended to the extracted content"
+                  },
+                  "tags": {
+                    "type": "string",
+                    "description": "Comma-separated tags for categorization"
+                  },
+                  "doc_type": {
+                    "type": "string",
+                    "description": "Document type classification. Defaults to 'image'.",
+                    "default": "image"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Image processed and ingested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "integer", "description": "New document ID" },
+                    "title": { "type": "string" },
+                    "extraction_method": { "type": "string", "description": "Method used: claude-vision or tesseract" },
+                    "created_at": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Missing image file or unsupported format", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Missing or invalid API key", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
     "/api/v1/capture/session": {
       "post": {
         "operationId": "captureSession",

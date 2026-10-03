@@ -1,10 +1,10 @@
 # Codebase Map
 > Auto-generated. Do NOT edit manually. Regenerate with: `node bin/generate-codemap.js`
-> Generated: 2026-03-16
+> Generated: 2026-03-17
 
 ## Quick Stats
-- **Files:** 41
-- **Total lines:** 3,806
+- **Files:** 52
+- **Total lines:** 5,504
 
 ## Architecture Overview
 ```
@@ -26,28 +26,37 @@ bin/
   post-sync.sh     ← Post-sync reindex trigger
 ```
 
+## Root/
+
+| File | Lines | Exports | Purpose |
+|------|-------|---------|---------|
+| kb-server-install.sh | 72 | - | !/bin/bash |
+
 ## bin/
 
 | File | Lines | Exports | Purpose |
 |------|-------|---------|---------|
-| cron-capture.sh | 28 | - | !/bin/bash |
-| generate-codemap.js | 153 | - | Generates a token-efficient codebase map for AI agents |
-| init-vault.sh | 40 | - | !/bin/bash |
-| kb.js | 87 | - | bin/kb.js — CLI entry point |
+| cron-capture.sh | 30 | - | !/bin/bash |
+| generate-codemap.js | 155 | - | Generates a token-efficient codebase map for AI agents |
+| init-vault.sh | 36 | - | !/bin/bash |
+| kb.js | 91 | - | bin/kb.js — CLI entry point |
 | post-sync.sh | 31 | - | !/bin/bash |
-| weekly-synthesis.js | 19 | - | Weekly synthesis job — run via cron or manually |
-| weekly-synthesis.sh | 7 | - | !/bin/bash |
+| weekly-synthesis.js | 22 | - | Weekly synthesis job — run via cron or manually |
+| weekly-synthesis.sh | 9 | - | !/bin/bash |
 
 ## src/
 
 | File | Lines | Exports | Purpose |
 |------|-------|---------|---------|
+| auth-oauth.js | 25 | auth | src/auth-oauth.js — Better Auth OAuth provider for MCP clients |
 | auth.js | 149 | hasPassword, setPassword, checkPassword, promptPassword, createSession... | - |
-| db.js | 250 | insertDocument, updateDocument, deleteDocument, searchDocuments, listDocuments... | - |
+| db.js | 323 | insertDocument, updateDocument, deleteDocument, searchDocuments, listDocuments... | Common English stop words to filter from search queries |
 | ingest.js | 140 | ingestFile, ingestDirectory, ingestText | - |
-| mcp.js | 430 | start | Allow direct execution |
+| mcp-http.js | 137 | mcpHttpHandler, mcpGetHandler | - |
+| mcp.js | 28 | start | Allow direct execution |
 | paths.js | 13 | KB_DIR, FILES_DIR, DB_PATH, CONFIG_PATH, PID_PATH | - |
-| server.js | 75 | start | - |
+| server.js | 219 | start | - |
+| tools.js | 423 | getToolDefinitions, getHttpToolDefinitions | - |
 
 ## src/capture/
 
@@ -73,6 +82,7 @@ bin/
 | ingest-cli.js | 36 | ingest | - |
 | register.js | 25 | register | - |
 | search-cli.js | 26 | search | - |
+| setup.js | 577 | setup | --------------------------------------------------------------------------- |
 | status.js | 38 | status | - |
 | stop.js | 25 | stop | - |
 | vault-cli.js | 18 | vaultReindex | - |
@@ -81,8 +91,14 @@ bin/
 
 | File | Lines | Exports | Purpose |
 |------|-------|---------|---------|
-| embed.js | 39 | generateEmbedding, embeddingToBuffer, bufferToEmbedding, cosineSimilarity | Convert Float32Array to Buffer for SQLite BLOB storage (3x smaller than JSON) |
+| embed.js | 57 | generateEmbedding, embeddingToBuffer, bufferToEmbedding, cosineSimilarity | Convert Float32Array to Buffer for SQLite BLOB storage (3x smaller than JSON) |
 | search.js | 88 | semanticSearch, hybridSearch | Brute-force cosine similarity — works for <2000 notes. |
+
+## src/middleware/
+
+| File | Lines | Exports | Purpose |
+|------|-------|---------|---------|
+| api-key.js | 38 | createApiKeyMiddleware | src/middleware/api-key.js |
 
 ## src/promotion/
 
@@ -103,6 +119,8 @@ bin/
 |------|-------|---------|---------|
 | api.js | 175 | default | All API routes require auth |
 | auth-routes.js | 23 | default | - |
+| openapi.js | 11 | default | - |
+| v1.js | 276 | default | src/routes/v1.js |
 
 ## src/safety/
 
@@ -114,7 +132,7 @@ bin/
 
 | File | Lines | Exports | Purpose |
 |------|-------|---------|---------|
-| kb-to-vault.js | 278 | - | KB-to-Vault Sync  Exports all KB documents that don't have corresponding vault f |
+| kb-to-vault.js | 280 | - | KB-to-Vault Sync  Exports all KB documents that don't have corresponding vault f |
 
 ## src/synthesis/
 
@@ -133,7 +151,10 @@ bin/
 
 | File | Lines | Exports | Purpose |
 |------|-------|---------|---------|
+| api-key.test.js | 57 | - | tests/api-key.test.js |
 | db.test.js | 35 | - | - |
+| tools.test.js | 51 | - | - |
+| v1.test.js | 187 | - | tests/v1.test.js |
 | vault-indexer.test.js | 39 | - | Test Research |
 | vault-parser.test.js | 55 | - | Test Note |
 

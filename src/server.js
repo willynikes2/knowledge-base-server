@@ -112,8 +112,15 @@ export async function start() {
     res.sendFile(join(__dirname, 'public', 'sign-in.html'));
   });
 
+  // Request logging for debugging
+  app.use((req, res, next) => {
+    console.log(`[REQ] ${req.method} ${req.path} origin=${req.headers.origin || 'none'}`);
+    next();
+  });
+
   // Now enable JSON body parsing for remaining routes
-  app.use(express.json({ limit: '1mb' }));
+  // 20mb limit to support base64 image ingestion via MCP tools
+  app.use(express.json({ limit: '20mb' }));
   app.use(express.static(join(__dirname, 'public')));
 
   // --- Dashboard routes (existing, cookie auth) ---
@@ -171,11 +178,27 @@ export async function start() {
   app.use('/api/v1', corsMiddleware, brainAuth, v1Router);
 
   // Authenticated: MCP HTTP (API key or OAuth)
-  app.post('/mcp', corsMiddleware, brainAuth, mcpHttpHandler);
-  app.get('/mcp', corsMiddleware, brainAuth, mcpGetHandler);
+  app.post('/mcp', (req, res, next) => {
+    console.log(`[MCP POST] session=${req.headers['mcp-session-id'] || 'new'} auth=${req.headers.authorization ? 'Bearer...' : req.headers['x-api-key'] ? 'APIKey' : 'NONE'} origin=${req.headers.origin || 'none'}`);
+    next();
+  }, corsMiddleware, brainAuth, mcpHttpHandler);
+  app.get('/mcp', (req, res, next) => {
+    console.log(`[MCP GET] session=${req.headers['mcp-session-id'] || 'none'} auth=${req.headers.authorization ? 'Bearer...' : 'NONE'}`);
+    next();
+  }, corsMiddleware, brainAuth, mcpGetHandler);
   app.delete('/mcp', corsMiddleware, brainAuth, (req, res) => {
     // Session termination endpoint (MCP spec)
     res.status(200).json({ ok: true });
+  });
+
+  // Also handle MCP at root — Claude web POSTs to / when server URL has no path
+  app.post('/', (req, res, next) => {
+    // Only treat as MCP if it looks like a JSON-RPC request
+    if (req.body && (req.body.jsonrpc || req.body.method)) {
+      console.log(`[MCP POST /] routing to MCP handler`);
+      return brainAuth(req, res, () => mcpHttpHandler(req, res));
+    }
+    next();
   });
 
   // Fallback to index.html for SPA (MUST remain LAST route)

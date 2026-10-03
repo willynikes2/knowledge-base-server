@@ -1,11 +1,30 @@
 #!/usr/bin/env node
 // bin/kb.js — CLI entry point
-// Commands: start, stop, mcp, register, ingest <path>, search <query>, status, setup
+// Commands: start, stop, mcp, register, ingest <path>, search <query>, read <id>, status, setup
 
 import '../src/paths.js'; // loads .env from ~/.knowledge-base/.env
+import { readFileSync } from 'fs';
 
 const command = process.argv[2];
 const args = process.argv.slice(3);
+
+function readJsonPayload(usage) {
+  const payloadPath = args[0];
+  const vaultPath = args[1] || process.env.OBSIDIAN_VAULT_PATH;
+  if (!payloadPath || !vaultPath) {
+    console.error(usage);
+    process.exit(1);
+  }
+  let payload;
+  try {
+    payload = JSON.parse(readFileSync(payloadPath, 'utf8'));
+  } catch (err) {
+    console.error(`Error reading JSON payload ${payloadPath}: ${err.message}`);
+    process.exit(1);
+  }
+  return { payload, vaultPath };
+}
+
 
 const commands = {
   start:    () => import('../src/server.js').then(m => m.start()),
@@ -14,6 +33,7 @@ const commands = {
   register: () => import('../src/cli/register.js').then(m => m.register()),
   ingest:   () => import('../src/cli/ingest-cli.js').then(m => m.ingest(args)),
   search:   () => import('../src/cli/search-cli.js').then(m => m.search(args.join(' '))),
+  read:     () => import('../src/cli/read-cli.js').then(m => m.read(args)),
   'token-compare': () => import('../src/cli/token-compare.js').then(m => m.tokenCompare(args)),
   status:   () => import('../src/cli/status.js').then(m => m.status()),
   'capture-x': () => import('../src/capture/x-bookmarks.js').then(m => {
@@ -22,6 +42,20 @@ const commands = {
     if (!vaultPath) { console.error('OBSIDIAN_VAULT_PATH not set'); process.exit(1); }
     const result = m.captureXBookmarks(bookmarksPath, vaultPath);
     console.log(`X bookmarks: ${result.created} created, ${result.skipped} skipped (${result.total} total)`);
+  }),
+  'capture-session-json': () => import('../src/capture/terminal.js').then(m => {
+    const { payload, vaultPath } = readJsonPayload(
+      'Usage: kb capture-session-json <payload.json> [vault-path]'
+    );
+    const result = m.captureSession(payload, vaultPath);
+    console.log(JSON.stringify(result, null, 2));
+  }),
+  'capture-fix-json': () => import('../src/capture/terminal.js').then(m => {
+    const { payload, vaultPath } = readJsonPayload(
+      'Usage: kb capture-fix-json <payload.json> [vault-path]'
+    );
+    const result = m.captureFix(payload, vaultPath);
+    console.log(JSON.stringify(result, null, 2));
   }),
   classify: () => {
     const dryRun = args.includes('--dry-run');
@@ -77,12 +111,15 @@ Commands:
   register           Register MCP server with Claude Code
   ingest <path>      Ingest a file or directory
   search <query>     Search documents
+  read <id>           Read full document content (--json, --content-only)
   token-compare      Compare raw-doc vs KB-summary token cost
   status             Show stats and server status
   vault reindex      Reindex Obsidian vault
   classify           Auto-classify new clippings/inbox notes (--dry-run to preview)
   summarize          Add AI summaries to docs without them (--dry-run, --limit=N)
   capture-x [path]   Capture X/Twitter bookmarks to vault
+  capture-session-json <payload.json> [vault]  Capture a session from JSON
+  capture-fix-json <payload.json> [vault]      Capture a fix from JSON
   export             Export vault docs to a portable bundle (--out=dir, --dry-run, --json)
   restore <bundle>   Restore from a bundle (--dry-run, --overwrite, --yes, --strict, --no-embeddings)
   setup              Interactive setup wizard (--auto for agent mode)

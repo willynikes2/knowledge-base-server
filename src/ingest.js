@@ -1,7 +1,9 @@
 import { readFileSync, statSync, readdirSync, copyFileSync, existsSync } from 'fs';
 import { extname, basename, join } from 'path';
+import { createHash } from 'crypto';
 import { FILES_DIR } from './paths.js';
 import { insertDocument, listDocuments } from './db.js';
+import { extractFromImage } from './vision.js';
 
 const TYPE_MAP = {
   '.md': 'markdown',
@@ -33,16 +35,20 @@ async function extractPdfContent(filePath, filename) {
   }
 }
 
-function extractContent(filePath, type, filename) {
+async function extractContent(filePath, type, filename, options = {}) {
   if (type === 'markdown' || type === 'text' || type === 'code') {
     return readFileSync(filePath, 'utf-8');
   }
-  // image, audio, video — metadata only
+  if (type === 'image') {
+    const result = await extractFromImage(filePath, options);
+    return result.text;
+  }
+  // audio, video — metadata only
   const fileSize = statSync(filePath).size;
   return `[${type} file: ${filename}] Size: ${fileSize} bytes`;
 }
 
-export async function ingestFile(filePath) {
+export async function ingestFile(filePath, options = {}) {
   const ext = extname(filePath).toLowerCase();
   const type = TYPE_MAP[ext];
   if (!type) return null;
@@ -56,7 +62,7 @@ export async function ingestFile(filePath) {
   if (type === 'pdf') {
     content = await extractPdfContent(filePath, filename);
   } else {
-    content = extractContent(filePath, type, filename);
+    content = await extractContent(filePath, type, filename, options);
   }
 
   // Copy file to FILES_DIR with timestamp prefix

@@ -1,6 +1,13 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { homedir } from 'os';
-import { join } from 'path';
+import { dirname, join, resolve } from 'path';
+import { fileURLToPath } from 'url';
+
+const MCP_COMMAND = process.execPath;
+const MCP_ARGS = [
+  resolve(dirname(fileURLToPath(import.meta.url)), '../../bin/kb.js'),
+  'mcp',
+];
 
 export function register() {
   const claudeJsonPath = join(homedir(), '.claude.json');
@@ -13,8 +20,8 @@ export function register() {
   if (!config.mcpServers) config.mcpServers = {};
 
   config.mcpServers['knowledge-base'] = {
-    command: 'kb',
-    args: ['mcp'],
+    command: MCP_COMMAND,
+    args: MCP_ARGS,
   };
 
   writeFileSync(claudeJsonPath, JSON.stringify(config, null, 2));

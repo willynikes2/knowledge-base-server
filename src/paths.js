@@ -15,5 +15,5 @@ mkdirSync(FILES_DIR, { recursive: true });
 // Load .env from KB_DIR — the canonical config location.
 // No CWD fallback: CWD is unreliable (could be $HOME via systemd, /tmp, or npx cache).
 if (existsSync(ENV_PATH)) {
-  config({ path: ENV_PATH });
+  config({ path: ENV_PATH, quiet: true });
 }

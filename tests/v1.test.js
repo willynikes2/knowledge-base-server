@@ -183,4 +183,51 @@ describe('v1 API', () => {
       assert.strictEqual(res.status, 403);
     });
   });
+
+  it('GET /api/v1/uploads/:filename rejects invalid filenames', async () => {
+    await withServer(async (port) => {
+      const res = await fetch(`http://localhost:${port}/api/v1/uploads/not-valid.txt`, {
+        headers: { 'X-API-Key': 'test-key-123' },
+      });
+      const data = await res.json();
+      assert.strictEqual(res.status, 400);
+      assert.match(data.error, /Invalid upload filename/);
+    });
+  });
+
+  it('GET /api/v1/uploads/:filename serves uploaded SVG as an inert attachment', async () => {
+    await withServer(async (port) => {
+      const form = new FormData();
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(document.domain)</script></svg>';
+      form.append('image', new Blob([svg], { type: 'image/svg+xml' }), 'evil.svg');
+      const uploadRes = await fetch(`http://localhost:${port}/api/v1/upload`, {
+        method: 'POST',
+        headers: { 'X-API-Key': 'test-key-123' },
+        body: form,
+      });
+      assert.strictEqual(uploadRes.status, 201);
+      const { url } = await uploadRes.json();
+      const filename = url.split('/').pop();
+
+      const res = await fetch(`http://localhost:${port}/api/v1/uploads/${filename}`, {
+        headers: { 'X-API-Key': 'test-key-123' },
+      });
+      assert.strictEqual(res.status, 200);
+      assert.match(res.headers.get('content-disposition') || '', /^attachment/);
+      assert.strictEqual(res.headers.get('x-content-type-options'), 'nosniff');
+      assert.match(res.headers.get('content-security-policy') || '', /sandbox/);
+      assert.doesNotMatch(res.headers.get('content-type') || '', /svg|html|xml/);
+    });
+  });
+
+  it('GET /api/v1/uploads/:filename rejects encoded traversal', async () => {
+    await withServer(async (port) => {
+      const res = await fetch(`http://localhost:${port}/api/v1/uploads/%2e%2e%2fpasswd`, {
+        headers: { 'X-API-Key': 'test-key-123' },
+      });
+      assert.strictEqual(res.status, 400);
+      const data = await res.json();
+      assert.match(data.error, /Invalid upload filename/);
+    });
+  });
 });

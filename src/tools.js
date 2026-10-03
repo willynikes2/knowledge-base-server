@@ -1,8 +1,16 @@
 import { z } from 'zod';
+import http from 'http';
+import https from 'https';
 import { writeFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { writeFile, unlink } from 'fs/promises';
+import { join, resolve, sep } from 'path';
+import { homedir, tmpdir } from 'os';
+import { randomBytes } from 'crypto';
+import { lookup } from 'dns/promises';
+import { BlockList, isIP } from 'net';
 import { searchDocuments, listDocuments, getDocument, getStats, getDb } from './db.js';
 import { ingestText } from './ingest.js';
+import { extractFromImage } from './vision.js';
 import { indexVault } from './vault/indexer.js';
 import { captureYouTube } from './capture/youtube.js';
 import { captureWeb } from './capture/web.js';
@@ -19,7 +27,114 @@ const ADMIN_ONLY_TOOLS = new Set([
   'kb_synthesize',
   'kb_safety_check',
   'kb_capture_youtube',
+  'kb_export',
+  'kb_restore',
 ]);
+
+const TOOL_EXPORT_ROOT = resolve(process.env.KB_EXPORT_ROOT || join(homedir(), '.knowledge-base', 'exports'));
+
+function pathUnder(root, inputPath) {
+  const rootResolved = resolve(root);
+  const target = resolve(rootResolved, inputPath);
+  if (target !== rootResolved && !target.startsWith(rootResolved + sep)) {
+    throw new Error(`Path must stay under ${rootResolved}`);
+  }
+  return target;
+}
+
+// Non-public ranges. BlockList also matches IPv4-mapped IPv6 (::ffff:a.b.c.d)
+// against the IPv4 rules; IPv4-compatible (::/96) and NAT64 are listed explicitly.
+const NON_PUBLIC_ADDRESSES = new BlockList();
+for (const [net, prefix] of [
+  ['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8],
+  ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.168.0.0', 16],
+  ['198.18.0.0', 15], ['224.0.0.0', 4], ['240.0.0.0', 4],
+]) NON_PUBLIC_ADDRESSES.addSubnet(net, prefix, 'ipv4');
+for (const [net, prefix] of [
+  ['::', 96], ['64:ff9b::', 96], ['64:ff9b:1::', 48],
+  ['fc00::', 7], ['fe80::', 10], ['ff00::', 8],
+]) NON_PUBLIC_ADDRESSES.addSubnet(net, prefix, 'ipv6');
+
+function isPrivateIPv4(address) {
+  return isIP(address) !== 4 || NON_PUBLIC_ADDRESSES.check(address, 'ipv4');
+}
+
+function isPrivateIPv6(address) {
+  return isIP(address) !== 6 || NON_PUBLIC_ADDRESSES.check(address, 'ipv6');
+}
+
+async function assertPublicImageUrl(rawUrl) {
+  const url = new URL(rawUrl);
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new Error('image_url must use http or https');
+  }
+
+  const hostname = url.hostname.replace(/^\[|\]$/g, '');
+  const literalType = isIP(hostname);
+  if (literalType === 4 && isPrivateIPv4(hostname)) {
+    throw new Error('image_url must not point to a private or loopback IPv4 address');
+  }
+  if (literalType === 6 && isPrivateIPv6(hostname)) {
+    throw new Error('image_url must not point to a private or loopback IPv6 address');
+  }
+
+  const records = await lookup(hostname, { all: true, verbatim: true });
+  for (const record of records) {
+    if ((record.family === 4 && isPrivateIPv4(record.address))
+      || (record.family === 6 && isPrivateIPv6(record.address))) {
+      throw new Error('image_url resolves to a private or loopback address');
+    }
+  }
+  return { url, record: records[0] };
+}
+
+async function downloadPublicImageUrl(rawUrl, redirects = 0) {
+  const { url, record } = await assertPublicImageUrl(rawUrl);
+  const client = url.protocol === 'https:' ? https : http;
+
+  return new Promise((resolvePromise, rejectPromise) => {
+    const req = client.request(url, {
+      lookup: (_hostname, _options, callback) => callback(null, record.address, record.family),
+      timeout: 10_000,
+      headers: { 'User-Agent': 'knowledge-base-server/1.0' },
+    }, (res) => {
+      const statusCode = res.statusCode || 0;
+
+      if ([301, 302, 303, 307, 308].includes(statusCode) && res.headers.location) {
+        res.resume();
+        if (redirects >= 3) {
+          rejectPromise(new Error('Too many redirects while downloading image'));
+          return;
+        }
+        downloadPublicImageUrl(new URL(res.headers.location, url).toString(), redirects + 1)
+          .then(resolvePromise, rejectPromise);
+        return;
+      }
+
+      if (statusCode < 200 || statusCode >= 300) {
+        res.resume();
+        rejectPromise(new Error(`Failed to download image: ${statusCode} ${res.statusMessage || ''}`.trim()));
+        return;
+      }
+
+      const chunks = [];
+      let size = 0;
+      res.on('data', (chunk) => {
+        size += chunk.length;
+        if (size > 20 * 1024 * 1024) {
+          req.destroy(new Error('Downloaded image exceeds 20MB limit'));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      res.on('end', () => resolvePromise(Buffer.concat(chunks)));
+    });
+
+    req.on('timeout', () => req.destroy(new Error('Timed out downloading image')));
+    req.on('error', rejectPromise);
+    req.end();
+  });
+}
 
 export function getToolDefinitions() {
   return [
@@ -91,6 +206,97 @@ export function getToolDefinitions() {
           return { content: [{ type: 'text', text: JSON.stringify(doc, null, 2) }] };
         } catch (err) {
           return { content: [{ type: 'text', text: `Error: ${err.message}` }], isError: true };
+        }
+      },
+    },
+
+    {
+      name: 'kb_ingest_image',
+      description: 'Ingest an image into the knowledge base. Stores the original in the vault and extracts text via AI vision. IMPORTANT: base64 image_data has a ~50KB limit due to MCP tool call size constraints. For large images: (1) ALWAYS resize to max 800px wide and convert to JPEG quality 60 before encoding, or (2) prefer image_url if the image is hosted anywhere. If the image is too large even after compression, describe it in a kb_write note instead.',
+      schema: {
+        title: z.string().describe('Document title for the ingested image'),
+        image_data: z.string().optional().describe('Base64-encoded image data (provide this OR image_url)'),
+        image_url: z.string().optional().describe('URL to download the image from (provide this OR image_data)'),
+        media_type: z.enum(['image/png', 'image/jpeg', 'image/gif', 'image/webp']).optional()
+          .default('image/png').describe('MIME type of the image'),
+        note: z.string().optional().describe('Context about the image — what it shows, why it matters'),
+        tags: z.string().optional().describe('Comma-separated tags (e.g. screenshot,error,debug)'),
+        category: z.enum(['screenshot', 'error', 'diagram', 'reference', 'photo', 'other']).optional()
+          .default('screenshot').describe('Image category for organization'),
+      },
+      handler: async ({ title, image_data, image_url, media_type, note, tags, category }) => {
+        if (!image_data && !image_url) {
+          return { content: [{ type: 'text', text: 'Error: Provide either image_data (base64) or image_url' }], isError: true };
+        }
+        const vaultPath = process.env.OBSIDIAN_VAULT_PATH;
+        if (!vaultPath) {
+          return { content: [{ type: 'text', text: 'Error: OBSIDIAN_VAULT_PATH not configured' }], isError: true };
+        }
+
+        const ext = (media_type || 'image/png').split('/')[1].replace('jpeg', 'jpg');
+        const date = new Date().toISOString().split('T')[0];
+        const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
+        const filename = `${date}-${slug}.${ext}`;
+        const tmpPath = join(tmpdir(), `kb-img-${randomBytes(8).toString('hex')}.${ext}`);
+
+        try {
+          // Download or decode image to temp file
+          if (image_url) {
+            const buf = await downloadPublicImageUrl(image_url);
+            await writeFile(tmpPath, buf);
+          } else {
+            const cleaned = image_data.replace(/^data:image\/[^;]+;base64,/, '');
+            const buf = Buffer.from(cleaned, 'base64');
+            if (buf.length > 50 * 1024) throw new Error('image_data exceeds the 50KB MCP limit; use image_url or summarize it in a note');
+            if (buf.length < 100) throw new Error('Image data too small or corrupt — base64 may have been truncated');
+            await writeFile(tmpPath, buf);
+          }
+
+          // Store original image in vault Images/ folder
+          const { mkdirSync, copyFileSync } = await import('fs');
+          const imagesDir = join(vaultPath, 'Images', category || 'screenshot');
+          mkdirSync(imagesDir, { recursive: true });
+          const imagePath = join(imagesDir, filename);
+          copyFileSync(tmpPath, imagePath);
+
+          // Extract text/description via vision
+          const result = await extractFromImage(tmpPath, { note });
+
+          // Build KB document content with image reference
+          const content = [
+            note ? `**Context:** ${note}` : '',
+            imagePath ? `**Image:** [[Images/${category || 'screenshot'}/${filename}]]` : '',
+            image_url ? `**Source URL:** ${image_url}` : '',
+            `**Category:** ${category || 'screenshot'}`,
+            `**Extraction method:** ${result.method}`,
+            '',
+            '---',
+            '',
+            result.text,
+          ].filter(Boolean).join('\n');
+
+          const doc = ingestText(title, content, {
+            tags: tags ? tags.split(',').map(t => t.trim()) : ['image', category || 'screenshot'],
+            doc_type: 'image',
+            source: image_url ? `image-url:${image_url}` : `image-upload:${filename}`,
+          });
+
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                id: doc.id,
+                title: doc.title,
+                image_stored: imagePath ? `Images/${category || 'screenshot'}/${filename}` : null,
+                extraction_method: result.method,
+                preview: result.text.slice(0, 300) + (result.text.length > 300 ? '...' : ''),
+              }, null, 2),
+            }],
+          };
+        } catch (err) {
+          return { content: [{ type: 'text', text: `Error: ${err.message}` }], isError: true };
+        } finally {
+          unlink(tmpPath).catch(() => {});
         }
       },
     },
@@ -410,6 +616,91 @@ export function getToolDefinitions() {
           const result = await reviewDestructiveAction(action, context);
           const prefix = result.safe ? 'SAFE' : 'BLOCKED';
           return { content: [{ type: 'text', text: `[${prefix}] Risk: ${result.risk_level}\n\n${JSON.stringify(result, null, 2)}` }] };
+        } catch (err) {
+          return { content: [{ type: 'text', text: `Error: ${err.message}` }], isError: true };
+        }
+      },
+    },
+
+    // ─── Export / Restore tools (Ship 2) ──────────────────────────────────────
+
+    {
+      name: 'kb_export',
+      description: 'Export vault documents to a portable bundle directory. Supports --all or filtered export. Returns manifest with file list and sha256 hashes. Use dry_run=true to preview without writing.',
+      schema: {
+        output_path: z.string().describe('Absolute path for the output bundle directory'),
+        filter: z.record(z.string(), z.any()).optional().describe('Filter spec JSON object (see docs). Omit for --all export.'),
+        dry_run: z.boolean().optional().default(false).describe('Preview only — compute manifest without writing files'),
+        archive: z.boolean().optional().default(false).describe('Also create a .tar.gz archive alongside the directory'),
+        no_attachments: z.boolean().optional().default(false).describe('Skip binary attachments (markdown only)'),
+      },
+      handler: async ({ output_path, filter, dry_run, archive, no_attachments }) => {
+        try {
+          const vaultPath = process.env.OBSIDIAN_VAULT_PATH;
+          if (!vaultPath) return { content: [{ type: 'text', text: 'Error: OBSIDIAN_VAULT_PATH not configured' }], isError: true };
+
+          const { exportDocs } = await import('./export.js');
+          const outPath = pathUnder(TOOL_EXPORT_ROOT, output_path);
+          const result = await exportDocs({
+            outPath,
+            dryRun: dry_run,
+            all: !filter,
+            filter: filter || null,
+            vaultPath,
+            archive: archive || false,
+            noAttachments: no_attachments || false,
+          });
+
+          const summary = {
+            dry_run: result.dryRun,
+            written: result.written,
+            out_path: outPath,
+            export_root: TOOL_EXPORT_ROOT,
+            counts: result.manifest.counts,
+            exported_at: result.manifest.exported_at,
+            manifest_version: result.manifest.manifest_version,
+            filter_expanded: result.manifest.filter_expanded,
+            file_count: result.manifest.files.length,
+          };
+          return { content: [{ type: 'text', text: JSON.stringify(summary, null, 2) }] };
+        } catch (err) {
+          return { content: [{ type: 'text', text: `Error: ${err.message}` }], isError: true };
+        }
+      },
+    },
+
+    {
+      name: 'kb_restore',
+      description: 'Restore a KB bundle into the vault. Runs preflight checks first. Use dry_run=true to preview conflicts without writing. Triggers reindex after restore.',
+      schema: {
+        bundle_path: z.string().describe('Absolute path to the bundle directory (or .tar.gz)'),
+        dry_run: z.boolean().optional().default(false).describe('Preflight only — report conflicts without writing'),
+        overwrite: z.boolean().optional().default(false).describe('Overwrite existing files at same vault path'),
+        yes: z.boolean().optional().default(false).describe('Skip confirmation prompt'),
+        strict: z.boolean().optional().default(false).describe('Fail if vault is non-empty'),
+        no_embeddings: z.boolean().optional().default(false).describe('Skip embedding regeneration after restore'),
+      },
+      handler: async ({ bundle_path, dry_run, overwrite, yes, strict, no_embeddings }) => {
+        try {
+          const vaultPath = process.env.OBSIDIAN_VAULT_PATH;
+          if (!vaultPath) return { content: [{ type: 'text', text: 'Error: OBSIDIAN_VAULT_PATH not configured' }], isError: true };
+          if (!dry_run && yes !== true) {
+            return { content: [{ type: 'text', text: 'Error: Non-dry-run restore requires yes=true' }], isError: true };
+          }
+
+          const { restoreFromBundle } = await import('./restore.js');
+          const bundlePath = pathUnder(TOOL_EXPORT_ROOT, bundle_path);
+          const result = await restoreFromBundle({
+            bundlePath,
+            vaultPath,
+            dryRun: dry_run,
+            overwrite: overwrite || false,
+            yes: true,   // MCP callers don't have stdin after explicit confirmation
+            strict: strict || false,
+            noEmbeddings: no_embeddings || false,
+          });
+
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         } catch (err) {
           return { content: [{ type: 'text', text: `Error: ${err.message}` }], isError: true };
         }
