@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests (Node ${{ matrix.node }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        node: [20, 22, 24]
+        include:
+          # launchd paths and the better-sqlite3 native build differ on macOS
+          - os: macos-latest
+            node: 22
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  ocr:
+    name: OCR integration (real Tesseract)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run unstubbed OCR against a fixture image
+        run: node --test tests/vision.test.js
+        env:
+          KB_TEST_OCR: '1'
+
+  package:
+    name: Package smoke test (packed tarball)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Pack
+        run: npm pack --pack-destination "$RUNNER_TEMP/pkg"
+      - name: Install the tarball into an empty project
+        # Resolves dependencies from package.json ranges, not our lockfile,
+        # exactly as a user installing the package would.
+        working-directory: ${{ runner.temp }}/pkg
+        run: |
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund ./knowledge-base-server-*.tgz
+      - name: Exercise kb mcp, the bus CLIs and kb start from the installed package
+        working-directory: ${{ runner.temp }}/pkg
+        run: node "$GITHUB_WORKSPACE/.github/scripts/package-smoke.mjs"
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Known vulnerabilities in production dependencies
+        run: npm audit --omit=dev --audit-level=moderate
+      - name: Registry signatures and provenance attestations
+        run: npm audit signatures

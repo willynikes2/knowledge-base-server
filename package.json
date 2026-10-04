@@ -10,6 +10,9 @@
     "bus-wait": "./bin/bus-wait.js"
   },
   "main": "./src/server.js",
+  "scripts": {
+    "test": "node --test"
+  },
   "files": [
     "bin/",
     "src/",
