@@ -4,7 +4,10 @@
   "description": "Portable knowledge base with web dashboard and MCP server for AI tools",
   "type": "module",
   "bin": {
-    "kb": "./bin/kb.js"
+    "kb": "./bin/kb.js",
+    "bus-send": "./bin/bus-send.js",
+    "bus-inbox": "./bin/bus-inbox.js",
+    "bus-wait": "./bin/bus-wait.js"
   },
   "main": "./src/server.js",
   "files": [

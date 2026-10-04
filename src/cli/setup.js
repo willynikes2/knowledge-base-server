@@ -2,17 +2,12 @@ import { createInterface } from 'readline';
 import { randomBytes } from 'crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { homedir, platform, release, type as osType } from 'os';
-import { dirname, join, resolve } from 'path';
+import { join, resolve } from 'path';
 import { execFileSync } from 'child_process';
-import { fileURLToPath } from 'url';
 import { KB_DIR, ENV_PATH } from '../paths.js';
+import { registerAgents } from './mcp-register.js';
 
 const HOME = homedir();
-const MCP_COMMAND = process.execPath;
-const MCP_ARGS = [
-  resolve(dirname(fileURLToPath(import.meta.url)), '../../bin/kb.js'),
-  'mcp',
-];
 
 function isNpx() {
   return !!(process.env.npm_execpath?.includes('npx') ||
@@ -259,54 +254,10 @@ volumes:
   return composePath;
 }
 
-// ---------------------------------------------------------------------------
-// MCP registration per agent
-// ---------------------------------------------------------------------------
-
-function registerMcpClaude() {
-  const claudeJsonPath = join(HOME, '.claude.json');
-  let config = {};
-  if (existsSync(claudeJsonPath)) {
-    try { config = JSON.parse(readFileSync(claudeJsonPath, 'utf-8')); } catch { config = {}; }
-  }
-  if (!config.mcpServers) config.mcpServers = {};
-  config.mcpServers['knowledge-base'] = { command: MCP_COMMAND, args: MCP_ARGS };
-  writeFileSync(claudeJsonPath, JSON.stringify(config, null, 2));
-  return claudeJsonPath;
-}
-
-function registerMcpCodex() {
-  const dir = join(HOME, '.codex');
-  mkdirSync(dir, { recursive: true });
-  const mcpPath = join(dir, 'mcp.json');
-  let config = {};
-  if (existsSync(mcpPath)) {
-    try { config = JSON.parse(readFileSync(mcpPath, 'utf-8')); } catch { config = {}; }
-  }
-  if (!config.mcpServers) config.mcpServers = {};
-  config.mcpServers['knowledge-base'] = { command: MCP_COMMAND, args: MCP_ARGS };
-  writeFileSync(mcpPath, JSON.stringify(config, null, 2));
-  return mcpPath;
-}
-
-function registerMcpGemini() {
-  const dir = join(HOME, '.gemini');
-  mkdirSync(dir, { recursive: true });
-  const mcpPath = join(dir, 'mcp.json');
-  let config = {};
-  if (existsSync(mcpPath)) {
-    try { config = JSON.parse(readFileSync(mcpPath, 'utf-8')); } catch { config = {}; }
-  }
-  if (!config.mcpServers) config.mcpServers = {};
-  config.mcpServers['knowledge-base'] = { command: MCP_COMMAND, args: MCP_ARGS };
-  writeFileSync(mcpPath, JSON.stringify(config, null, 2));
-  return mcpPath;
-}
-
 const MCP_REGISTRARS = {
-  claude: registerMcpClaude,
-  codex: registerMcpCodex,
-  gemini: registerMcpGemini,
+  claude: () => registerAgents(['claude'], HOME)[0].path,
+  codex: () => registerAgents(['codex'], HOME)[0].path,
+  gemini: () => registerAgents(['gemini'], HOME)[0].path,
 };
 
 // ---------------------------------------------------------------------------

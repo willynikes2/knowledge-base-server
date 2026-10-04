@@ -1,5 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { startBusPushNotifier } from './bus/notifier.js';
+import { registerBusResources } from './bus/resources.js';
 
 export async function start() {
   // Keep stdio transport clean for MCP clients that treat startup stderr as a failure.
@@ -15,9 +17,11 @@ export async function start() {
   for (const tool of getToolDefinitions()) {
     server.tool(tool.name, tool.description, tool.schema, tool.handler);
   }
+  registerBusResources(server);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  startBusPushNotifier(server);
 }
 
 // Allow direct execution
