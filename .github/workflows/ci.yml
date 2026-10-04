@@ -63,7 +63,9 @@ jobs:
           node-version: 22
           cache: npm
       - name: Pack
-        run: npm pack --pack-destination "$RUNNER_TEMP/pkg"
+        run: |
+          mkdir -p "$RUNNER_TEMP/pkg"
+          npm pack --pack-destination "$RUNNER_TEMP/pkg"
       - name: Install the tarball into an empty project
         # Resolves dependencies from package.json ranges, not our lockfile,
         # exactly as a user installing the package would.
