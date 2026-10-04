@@ -1,5 +1,8 @@
 # knowledge-base-server
 
+[![CI](https://github.com/willynikes2/knowledge-base-server/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/willynikes2/knowledge-base-server/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/willynikes2/knowledge-base-server/actions/workflows/codeql.yml/badge.svg?branch=master)](https://github.com/willynikes2/knowledge-base-server/actions/workflows/codeql.yml)
+
 **Make every AI agent you use smarter.**
 
 A persistent memory system that captures, classifies, synthesizes, and retrieves knowledge for AI agents. One brain, multiple agents, compounding intelligence. Production-proven with 200+ documents, three agents (Claude, Codex, Gemini), and daily use.

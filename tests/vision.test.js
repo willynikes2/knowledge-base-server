@@ -262,3 +262,39 @@ describe('ingest.js image routing', () => {
     assert.equal(result, null, 'ingestFile should return null for unknown extensions');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Real Tesseract OCR (downloads the eng model on first run; KB_TEST_OCR=1)
+// ---------------------------------------------------------------------------
+describe('extractFromImage — real Tesseract OCR', { skip: !process.env.KB_TEST_OCR && 'set KB_TEST_OCR=1 to run' }, () => {
+  const fixture = join(import.meta.dirname, 'fixtures', 'ocr-sample.png');
+  let cwd;
+  let workDir;
+
+  before(() => {
+    cwd = process.cwd();
+    workDir = mkdtempSync(join(tmpdir(), 'kb-ocr-cwd-'));
+    process.chdir(workDir);
+    process.env.KB_VISION_ENABLED = 'false';
+    delete process.env.KB_TESSERACT_STUB_TEXT;
+    delete process.env.ANTHROPIC_API_KEY;
+  });
+
+  after(() => {
+    process.chdir(cwd);
+    delete process.env.KB_VISION_ENABLED;
+    rmSync(workDir, { recursive: true, force: true });
+  });
+
+  it('reads text from an image and caches the model under ~/.knowledge-base, not the cwd', async () => {
+    const { extractFromImage } = await import('../src/vision.js');
+    const { KB_DIR } = await import('../src/paths.js');
+
+    const result = await extractFromImage(fixture);
+
+    assert.equal(result.method, 'tesseract');
+    assert.match(result.text, /KNOWLEDGE\s+BASE/);
+    assert.deepEqual(await fs.readdir(workDir), [], 'OCR must not write files into the working directory');
+    await fs.access(join(KB_DIR, 'tesseract', 'eng.traineddata'));
+  });
+});

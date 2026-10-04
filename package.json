@@ -10,6 +10,9 @@
     "bus-wait": "./bin/bus-wait.js"
   },
   "main": "./src/server.js",
+  "scripts": {
+    "test": "node --test"
+  },
   "files": [
     "bin/",
     "src/",
@@ -20,10 +23,10 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
-    "@huggingface/transformers": "^3.8.1",
+    "@huggingface/transformers": "^4.3.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "bcryptjs": "^2.4.3",
-    "better-auth": "^1.5.5",
+    "better-auth": "~1.6.33",
     "better-sqlite3": "^12.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
