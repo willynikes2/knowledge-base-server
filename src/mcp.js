@@ -2,9 +2,12 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { startBusPushNotifier } from './bus/notifier.js';
 import { registerBusResources } from './bus/resources.js';
-import { getToolDefinitions } from './tools.js';
 
 export async function start() {
+  // Keep stdio transport clean for MCP clients that treat startup stderr as a failure.
+  process.noDeprecation = true;
+
+  const { getToolDefinitions } = await import('./tools.js');
   const server = new McpServer({
     name: 'knowledge-base',
     version: '1.0.0',

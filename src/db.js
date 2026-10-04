@@ -85,12 +85,17 @@ function initSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_vault_files_project ON vault_files(project);
   `);
 
-  // Migration: add summary and key_topics columns if missing
-  const cols = db.prepare("PRAGMA table_info(vault_files)").all().map(c => c.name);
-  if (!cols.includes('summary')) {
+  // Migrations for existing installs created before newer columns existed.
+  const documentCols = db.prepare("PRAGMA table_info(documents)").all().map(c => c.name);
+  if (!documentCols.includes('source')) {
+    db.prepare('ALTER TABLE documents ADD COLUMN source TEXT').run();
+  }
+
+  const vaultFileCols = db.prepare("PRAGMA table_info(vault_files)").all().map(c => c.name);
+  if (!vaultFileCols.includes('summary')) {
     db.prepare('ALTER TABLE vault_files ADD COLUMN summary TEXT').run();
   }
-  if (!cols.includes('key_topics')) {
+  if (!vaultFileCols.includes('key_topics')) {
     db.prepare('ALTER TABLE vault_files ADD COLUMN key_topics TEXT').run();
   }
 
@@ -115,6 +120,11 @@ function initSchema(db) {
 
 export { initSchema, getDb };
 
+export function setDbForTesting(testDb) {
+  db = testDb;
+  if (db) initSchema(db);
+}
+
 export function insertDocument({ title, content, source, doc_type, tags, file_path, file_size }) {
   const stmt = getDb().prepare(`
     INSERT INTO documents (title, content, source, doc_type, tags, file_path, file_size)
@@ -133,7 +143,13 @@ export function insertDocument({ title, content, source, doc_type, tags, file_pa
   };
 }
 
-export function updateDocument(id, { title, tags }) {
+export function updateDocument(id, { title, tags, source }) {
+  if (source !== undefined) {
+    const stmt = getDb().prepare(`
+      UPDATE documents SET title = ?, tags = ?, source = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+    `);
+    return stmt.run(title, tags, source, id);
+  }
   const stmt = getDb().prepare(`
     UPDATE documents SET title = ?, tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
   `);

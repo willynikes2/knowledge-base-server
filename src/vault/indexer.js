@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'fs';
-import { join, relative, extname } from 'path';
+import { join, relative, extname, basename } from 'path';
 import { createHash } from 'crypto';
+import { extractFromImage } from '../vision.js';
 import { parseVaultNote } from './parser.js';
 import {
   insertDocument, updateDocumentFull, getDb,
@@ -10,6 +11,7 @@ import {
 let indexing = false;
 
 const IGNORE_DIRS = new Set(['.obsidian', '.trash', '.git', '_assets', '_system', 'node_modules', 'textgenerator']);
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg']);
 const IGNORE_FILES = new Set(['.DS_Store', 'Thumbs.db']);
 
 export function scanVault(vaultPath) {
@@ -27,7 +29,8 @@ export function scanVault(vaultPath) {
       } else if (entry.isFile()) {
         if (IGNORE_FILES.has(entry.name)) continue;
         if (entry.name.startsWith('.sync-conflict')) continue;
-        if (extname(entry.name).toLowerCase() === '.md') {
+        const ext = extname(entry.name).toLowerCase();
+        if (ext === '.md' || IMAGE_EXTENSIONS.has(ext)) {
           results.push(fullPath);
         }
       }
@@ -40,6 +43,11 @@ export function scanVault(vaultPath) {
 
 function hashContent(content) {
   return createHash('sha256').update(content).digest('hex').slice(0, 16);
+}
+
+function hashFile(filePath) {
+  const buffer = readFileSync(filePath);
+  return createHash('sha256').update(buffer).digest('hex').slice(0, 16);
 }
 
 export async function indexVault(vaultPath, { embeddings = false } = {}) {
@@ -81,6 +89,68 @@ async function _indexVault(vaultPath, { embeddings = false } = {}) {
     seenPaths.add(relPath);
 
     try {
+      const ext = extname(filePath).toLowerCase();
+      const isImage = IMAGE_EXTENSIONS.has(ext);
+
+      if (isImage) {
+        // Binary hash for images
+        const hash = hashFile(filePath);
+        if (existingPaths.get(relPath) === hash) {
+          skipped++;
+          continue;
+        }
+
+        // Extract content via vision
+        let extractedText = '';
+        let description = '';
+        try {
+          const result = await extractFromImage(filePath);
+          extractedText = result.text;
+          description = result.description || '';
+        } catch (err) {
+          extractedText = `[image: ${basename(filePath)}]`;
+          errors.push(`vision ${relPath}: ${err.message}`);
+        }
+
+        const existing = getVaultFile(relPath);
+        let docId;
+        const docData = {
+          title: basename(filePath, ext),
+          content: extractedText,
+          tags: '',
+          doc_type: 'image',
+          source: `vault:${relPath}`,
+          file_path: filePath,
+          file_size: statSync(filePath).size,
+        };
+
+        if (existing && existing.document_id) {
+          updateDocumentFull(existing.document_id, docData);
+          docId = existing.document_id;
+        } else {
+          const doc = insertDocument(docData);
+          docId = doc.id;
+        }
+
+        upsertVaultFile({
+          vault_path: relPath,
+          content_hash: hash,
+          document_id: docId,
+          title: basename(filePath, ext),
+          note_type: 'image',
+          tags: '',
+          project: null,
+          status: null,
+          source: null,
+          confidence: null,
+          summary: description || null,
+          key_topics: null,
+        });
+
+        indexed++;
+        continue; // skip the markdown processing below
+      }
+
       const content = readFileSync(filePath, 'utf-8');
       const hash = hashContent(content);
 

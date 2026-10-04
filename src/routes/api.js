@@ -18,7 +18,27 @@ import { ingestFile, ingestDirectory } from '../ingest.js';
 import { indexVault } from '../vault/indexer.js';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const ALLOWED_MIME_TYPES = new Set([
+  'text/plain', 'text/markdown', 'text/csv', 'text/html', 'text/css',
+  'application/json', 'application/pdf', 'application/xml',
+  'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp', 'image/svg+xml',
+  'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/flac', 'audio/mp4', 'audio/aac',
+  'video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska',
+  'application/javascript', 'application/typescript',
+  'application/octet-stream', // fallback for unknown extensions
+]);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`File type not allowed: ${file.mimetype}`));
+    }
+  },
+});
 
 // All API routes require auth
 router.use('/api/documents', authMiddleware);
@@ -65,6 +85,7 @@ router.post('/api/documents', upload.array('files'), async (req, res) => {
 
     const documents = [];
     const tags = req.body.tags || '';
+    const note = req.body.note || '';
 
     for (const file of req.files) {
       const tempName = `kb-upload-${randomBytes(8).toString('hex')}-${file.originalname}`;
@@ -72,12 +93,12 @@ router.post('/api/documents', upload.array('files'), async (req, res) => {
 
       try {
         writeFileSync(tempPath, file.buffer);
-        const doc = await ingestFile(tempPath);
+        const doc = await ingestFile(tempPath, { note: note || undefined });
         if (doc) {
           // Fix title and source to use original filename
           const origName = file.originalname;
           const title = origName.replace(/\.[^.]+$/, '');
-          updateDocument(doc.id, { title, tags: tags || doc.tags });
+          updateDocument(doc.id, { title, tags: tags || doc.tags, source: origName });
           doc.title = title;
           doc.source = origName;
           if (tags) doc.tags = tags;
