@@ -12,6 +12,7 @@ import { formatYamlTags } from './utils/frontmatter.js';
 import { getRecentNotes, generateSynthesisPrompt } from './synthesis/weekly-review.js';
 import { processNewClippings } from './classify/processor.js';
 import { reviewDestructiveAction } from './safety/review.js';
+import { getBusToolDefinitions } from './bus/tools.js';
 
 const ADMIN_ONLY_TOOLS = new Set([
   'kb_classify',
@@ -19,10 +20,14 @@ const ADMIN_ONLY_TOOLS = new Set([
   'kb_synthesize',
   'kb_safety_check',
   'kb_capture_youtube',
+  'bus_send',
+  'bus_inbox',
+  'bus_wait',
 ]);
 
 export function getToolDefinitions() {
   return [
+    ...getBusToolDefinitions(),
     {
       name: 'kb_search',
       description: 'Search the knowledge base using full-text search. Returns ranked results with highlighted snippets.',
