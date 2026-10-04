@@ -8,6 +8,10 @@ import { promisify } from 'util';
 import { closeBusDb } from '../src/bus/db.js';
 import { getBusInbox, onBusMessage, sendBusMessage, waitForBusInbox } from '../src/bus/service.js';
 import { diffBusChannelUris } from '../src/bus/notifier.js';
+import { registerBusResources } from '../src/bus/resources.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
 const execFileAsync = promisify(execFile);
 const tempDirs = [];
@@ -133,7 +137,35 @@ describe('bus notifier diffing', () => {
 
     assert.deepStrictEqual(
       diffBusChannelUris(previous, next).sort(),
-      ['bus://swarm:test', 'bus://ticket:PF-1884'],
+      ['bus://swarm%3Atest', 'bus://ticket%3APF-1884'],
     );
+  });
+});
+
+describe('bus resources', () => {
+  it('lists and reads channels with colons via valid URIs', async () => {
+    makeBusHome();
+    sendBusMessage({ channel: 'ticket:PF-1884', sender: 'codex', message: 'hello' });
+
+    const server = new McpServer({ name: 'bus-test', version: '0.0.0' });
+    registerBusResources(server);
+    const client = new Client({ name: 'bus-test-client', version: '0.0.0' });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+
+    try {
+      const { resources } = await client.listResources();
+      assert.strictEqual(resources.length, 1);
+      assert.doesNotThrow(() => new URL(resources[0].uri));
+
+      const read = await client.readResource({ uri: resources[0].uri });
+      const payload = JSON.parse(read.contents[0].text);
+      assert.strictEqual(payload.channel, 'ticket:PF-1884');
+      assert.strictEqual(payload.messages[0].body, 'hello');
+      assert.strictEqual(read.contents[0].uri, resources[0].uri);
+    } finally {
+      await client.close();
+      await server.close();
+    }
   });
 });

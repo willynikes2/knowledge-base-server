@@ -2,6 +2,7 @@ import { existsSync, watch } from 'fs';
 import { dirname, basename } from 'path';
 import { getBusDbPath } from './config.js';
 import { listBusChannels, onBusMessage } from './service.js';
+import { busChannelUri } from './resources.js';
 
 function toStateMap(channels) {
   return new Map(channels.map(channel => [channel.channel, Number(channel.latest_id) || 0]));
@@ -11,7 +12,7 @@ export function diffBusChannelUris(previous, next) {
   const uris = [];
   for (const [channel, latestId] of next.entries()) {
     if (previous.get(channel) !== latestId) {
-      uris.push(`bus://${channel}`);
+      uris.push(busChannelUri(channel));
     }
   }
   return uris;
@@ -54,7 +55,7 @@ export function startBusPushNotifier(mcpServer) {
   const flushSoon = debounce(flush, 25);
   const stopLocalSubscription = onBusMessage(({ channel }) => {
     previous.set(channel, Number(previous.get(channel) || 0) + 1);
-    sendResourceUpdated(mcpServer, `bus://${channel}`).catch(() => {});
+    sendResourceUpdated(mcpServer, busChannelUri(channel)).catch(() => {});
   });
 
   let watcher = null;

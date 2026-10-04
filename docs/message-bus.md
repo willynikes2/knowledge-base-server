@@ -43,7 +43,7 @@ Use the returned `next_since` as the next cursor.
 
 ## Resources
 
-`bus://ticket:PF-1884` returns the latest messages for that channel as JSON.
+`bus://ticket%3APF-1884` (channel IDs are percent-encoded) returns the latest messages for that channel as JSON.
 
 If your MCP host supports resource subscriptions, you can subscribe to that URI.
 
