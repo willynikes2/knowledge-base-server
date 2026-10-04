@@ -15,6 +15,9 @@ export const auth = betterAuth({
   basePath: '/api/auth',
   emailAndPassword: {
     enabled: true,
+    // Any account can mint OAuth tokens with full KB access, so accounts are
+    // provisioned by the operator, never self-registered.
+    disableSignUp: true,
   },
   plugins: [
     mcp({
