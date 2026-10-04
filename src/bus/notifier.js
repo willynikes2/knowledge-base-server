@@ -66,6 +66,7 @@ export function startBusPushNotifier(mcpServer) {
           flushSoon();
         }
       });
+      watcher.unref?.();
     } catch {
       watcher = null;
     }
