@@ -1,7 +1,7 @@
 // src/routes/v1.js
 import { Router } from 'express';
 import { homedir } from 'os';
-import { join, resolve, sep } from 'path';
+import { join, resolve } from 'path';
 import { tmpdir } from 'os';
 import { mkdir as mkdirAsync, readdir, rename, stat, unlink } from 'fs/promises';
 import { randomBytes } from 'crypto';
@@ -16,6 +16,7 @@ import {
 } from '../db.js';
 import { ingestText } from '../ingest.js';
 import { extractFromImage } from '../vision.js';
+import { resolveUnder } from '../safe-path.js';
 
 const upload = multer({
   dest: join(tmpdir(), 'kb-uploads'),
@@ -44,12 +45,7 @@ const UPLOAD_EXT_BY_MIME = {
 const UPLOAD_FILENAME_RE = /^[a-f0-9]{16}\.(png|jpg|jpeg|gif|webp|bmp|svg)$/i;
 
 function pathUnder(root, inputPath) {
-  const rootResolved = resolve(root);
-  const target = resolve(rootResolved, inputPath);
-  if (target !== rootResolved && !target.startsWith(rootResolved + sep)) {
-    throw new Error(`Path must stay under ${rootResolved}`);
-  }
-  return target;
+  return resolveUnder(root, inputPath, `Path must stay under ${resolve(root)}`);
 }
 
 function truthy(value) {
@@ -436,15 +432,15 @@ router.post('/export', async (req, res) => {
     const { exportDocs } = await import('../export.js');
     const result = await exportDocs({
       outPath,
-      dryRun: dry_run,
+      dryRun: truthy(dry_run),
       all: !filter,
       filter: filter || null,
       vaultPath,
-      archive,
-      noAttachments: no_attachments,
+      archive: truthy(archive),
+      noAttachments: truthy(no_attachments),
     });
 
-    res.status(dry_run ? 200 : 201).json({
+    res.status(truthy(dry_run) ? 200 : 201).json({
       dry_run: result.dryRun,
       written: result.written,
       out_path: outPath,
@@ -465,14 +461,11 @@ router.post('/export', async (req, res) => {
 // bundle_path is resolved under KB_EXPORT_ROOT. Non-dry-run restore also requires
 // yes=true and KB_ENABLE_REMOTE_RESTORE=true.
 router.post('/restore', async (req, res) => {
-  const {
-    bundle_path,
-    dry_run = false,
-    overwrite = false,
-    strict = false,
-    no_embeddings = false,
-    yes = false,
-  } = req.body || {};
+  const { bundle_path, yes = false } = req.body || {};
+  const dry_run = truthy(req.body?.dry_run);
+  const overwrite = truthy(req.body?.overwrite);
+  const strict = truthy(req.body?.strict);
+  const no_embeddings = truthy(req.body?.no_embeddings);
 
   if (!bundle_path) {
     return res.status(400).json({ error: 'Missing required field: bundle_path' });

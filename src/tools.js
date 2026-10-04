@@ -3,7 +3,7 @@ import http from 'http';
 import https from 'https';
 import { writeFileSync, mkdirSync } from 'fs';
 import { writeFile, unlink } from 'fs/promises';
-import { join, resolve, sep } from 'path';
+import { join, resolve } from 'path';
 import { homedir, tmpdir } from 'os';
 import { randomBytes } from 'crypto';
 import { lookup } from 'dns/promises';
@@ -21,6 +21,7 @@ import { getRecentNotes, generateSynthesisPrompt } from './synthesis/weekly-revi
 import { processNewClippings } from './classify/processor.js';
 import { reviewDestructiveAction } from './safety/review.js';
 import { getBusToolDefinitions } from './bus/tools.js';
+import { resolveUnder } from './safe-path.js';
 
 const ADMIN_ONLY_TOOLS = new Set([
   'kb_classify',
@@ -38,12 +39,7 @@ const ADMIN_ONLY_TOOLS = new Set([
 const TOOL_EXPORT_ROOT = resolve(process.env.KB_EXPORT_ROOT || join(homedir(), '.knowledge-base', 'exports'));
 
 function pathUnder(root, inputPath) {
-  const rootResolved = resolve(root);
-  const target = resolve(rootResolved, inputPath);
-  if (target !== rootResolved && !target.startsWith(rootResolved + sep)) {
-    throw new Error(`Path must stay under ${rootResolved}`);
-  }
-  return target;
+  return resolveUnder(root, inputPath, `Path must stay under ${resolve(root)}`);
 }
 
 // Non-public ranges. BlockList also matches IPv4-mapped IPv6 (::ffff:a.b.c.d)

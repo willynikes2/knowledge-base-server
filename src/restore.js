@@ -2,21 +2,17 @@
 // Ship 1b will add: live progress, --into-folder, image OCR stub, archive (.tar.gz) input.
 
 import { existsSync, mkdirSync, readFileSync, copyFileSync, readdirSync, statSync } from 'fs';
-import { join, dirname, relative, resolve, sep } from 'path';
+import { join, dirname, relative, resolve } from 'path';
 import { createInterface } from 'readline';
 import { sha256File, sha256String, MANIFEST_VERSION } from './export/manifest.js';
 import { getDb } from './db.js';
+import { resolveUnder } from './safe-path.js';
 
 function safeJoin(root, relPath) {
   if (!relPath || typeof relPath !== 'string') {
     throw new Error('Invalid bundle path: expected a non-empty relative path');
   }
-  const target = resolve(root, relPath);
-  const rootResolved = resolve(root);
-  if (target !== rootResolved && !target.startsWith(rootResolved + sep)) {
-    throw new Error(`Unsafe path escapes target directory: ${relPath}`);
-  }
-  return target;
+  return resolveUnder(root, relPath, `Unsafe path escapes target directory: ${relPath}`);
 }
 
 function bundleFilePath(bundlePath, vaultPath) {
@@ -134,9 +130,10 @@ export function preflight(manifest, bundlePath, vaultPath, opts = {}) {
 
     // Check: bundle file exists on disk
     let bundleAbsPath;
+    let destPath;
     try {
       bundleAbsPath = bundleFilePath(bundlePath, vault_path);
-      safeJoin(vaultPath, restore_destination || vault_path);
+      destPath = relative(resolve(vaultPath), safeJoin(vaultPath, restore_destination || vault_path));
     } catch (err) {
       unsafePaths.push({ vault_path, detail: err.message });
       continue;
@@ -153,9 +150,9 @@ export function preflight(manifest, bundlePath, vaultPath, opts = {}) {
       continue;
     }
 
-    // Scenario 1: Same vault-relative path exists
-    if (existingByPath.has(vault_path)) {
-      const existingHash = existingByPath.get(vault_path);
+    // Scenario 1: Same vault-relative path already exists at the restore destination
+    if (existingByPath.has(destPath)) {
+      const existingHash = existingByPath.get(destPath);
       if (existingHash === sha256) {
         // Identical content — treat as hash match (silent skip)
         hashMatches.push(vault_path);

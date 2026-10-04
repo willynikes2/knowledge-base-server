@@ -3,7 +3,7 @@
 import { describe, it, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
 import Database from 'better-sqlite3';
-import { mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from 'fs';
+import { mkdirSync, writeFileSync, rmSync, readFileSync, existsSync, symlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { tmpdir } from 'os';
 import { randomBytes } from 'crypto';
@@ -412,6 +412,68 @@ describe('restore conflict handling', () => {
     assert.strictEqual(result.restored, 0);
     assert.strictEqual(result.skipped, 1);
     assert.ok(!existsSync(join(vault, 'incoming/shared.md')));
+  });
+});
+
+describe('restore path safety', () => {
+  let db, vault, bundle, outside;
+
+  beforeEach(() => {
+    db = new Database(':memory:');
+    initSchema(db);
+    setDbForTesting(db);
+    vault = tmpDir('restore-safety-vault');
+    bundle = tmpDir('restore-safety-bundle');
+    outside = tmpDir('restore-safety-outside');
+  });
+
+  afterEach(() => {
+    try { db.close(); } catch {}
+    for (const d of [vault, bundle, outside]) {
+      try { rmSync(d, { recursive: true }); } catch {}
+    }
+  });
+
+  it('does not overwrite an existing file via restore_destination without overwrite', async () => {
+    makeVault(vault, { 'important.md': '# Keep me\n' });
+    const incoming = '# Replaced\n';
+    makeBundle(bundle, { 'fresh.md': incoming });
+    const manifest = makeBundleManifest(bundle, { 'fresh.md': incoming });
+    manifest.files[0].restore_destination = 'important.md';
+    writeFileSync(join(bundle, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
+
+    const result = await restoreFromBundle({ bundlePath: bundle, vaultPath: vault, yes: true, noEmbeddings: true });
+
+    assert.strictEqual(readFileSync(join(vault, 'important.md'), 'utf8'), '# Keep me\n');
+    assert.strictEqual(result.restored, 0);
+    assert.strictEqual(result.conflicts, 1);
+  });
+
+  it('refuses bundle files that are symlinks', async () => {
+    const secret = 'top secret\n';
+    writeFileSync(join(outside, 'secret.md'), secret, 'utf8');
+    mkdirSync(join(bundle, 'notes'), { recursive: true });
+    symlinkSync(join(outside, 'secret.md'), join(bundle, 'notes', 'leak.md'));
+    makeBundleManifest(bundle, { 'leak.md': secret });
+
+    await assert.rejects(
+      restoreFromBundle({ bundlePath: bundle, vaultPath: vault, yes: true, noEmbeddings: true }),
+      /unsafe/i,
+    );
+    assert.ok(!existsSync(join(vault, 'leak.md')));
+  });
+
+  it('refuses destinations that escape the vault through a symlinked directory', async () => {
+    symlinkSync(outside, join(vault, 'linked'));
+    const incoming = '# Planted\n';
+    makeBundle(bundle, { 'linked/planted.md': incoming });
+    makeBundleManifest(bundle, { 'linked/planted.md': incoming });
+
+    await assert.rejects(
+      restoreFromBundle({ bundlePath: bundle, vaultPath: vault, yes: true, noEmbeddings: true }),
+      /unsafe/i,
+    );
+    assert.ok(!existsSync(join(outside, 'planted.md')));
   });
 });
 
