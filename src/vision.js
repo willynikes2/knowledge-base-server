@@ -1,6 +1,10 @@
 import fs from 'fs/promises';
 import path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
+import { KB_DIR } from './paths.js';
+
+// Tesseract caches its language model in the cwd by default; keep it with the KB data.
+const TESSERACT_CACHE_DIR = path.join(KB_DIR, 'tesseract');
 
 const MEDIA_TYPES = {
   '.png': 'image/png',
@@ -60,7 +64,8 @@ async function extractWithTesseract(imagePath) {
   const { createWorker } = await import('tesseract.js');
   let worker;
   try {
-    worker = await createWorker('eng');
+    await fs.mkdir(TESSERACT_CACHE_DIR, { recursive: true });
+    worker = await createWorker('eng', undefined, { cachePath: TESSERACT_CACHE_DIR });
     const { data } = await worker.recognize(imagePath);
     return data.text;
   } catch (err) {
