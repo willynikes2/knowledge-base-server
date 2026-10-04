@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { execFile } from 'child_process';
+import { execFile, spawnSync } from 'child_process';
 import { promisify } from 'util';
 import { closeBusDb } from '../src/bus/db.js';
 import { getBusInbox, onBusMessage, sendBusMessage, waitForBusInbox } from '../src/bus/service.js';
@@ -167,5 +167,28 @@ describe('bus resources', () => {
       await client.close();
       await server.close();
     }
+  });
+});
+
+describe('bus MCP lifecycle', () => {
+  it('MCP server exits when the client closes stdin', () => {
+    const home = makeBusHome();
+    const input = JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'test', version: '1.0.0' } },
+    }) + '\n';
+
+    const result = spawnSync(process.execPath, ['bin/kb.js', 'mcp'], {
+      cwd: process.cwd(),
+      input,
+      encoding: 'utf8',
+      timeout: 10000,
+      env: { ...process.env, KB_BUS_HOME: home },
+    });
+
+    assert.strictEqual(result.error?.code, undefined, 'MCP server did not exit after stdin closed');
+    assert.strictEqual(result.status, 0, result.stderr);
   });
 });
