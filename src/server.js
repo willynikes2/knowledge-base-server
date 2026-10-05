@@ -12,7 +12,8 @@ import cors from 'cors';
 import authRoutes from './routes/session-routes.js';
 import apiRoutes from './routes/api.js';
 import { toNodeHandler } from 'better-auth/node';
-import { auth } from './auth-oauth.js';
+import { oauthProviderAuthServerMetadata, oauthProviderOpenIdConfigMetadata } from '@better-auth/oauth-provider';
+import { auth, migrateAuthSchema, verifyAccessToken, BASE_URL } from './auth-oauth.js';
 import { createApiKeyMiddleware } from './middleware/api-key.js';
 import v1Router from './routes/v1.js';
 import openapiRoute from './routes/openapi.js';
@@ -40,7 +41,13 @@ export async function start() {
     await promptPassword();
   }
 
-  // 2. Auto-ingest on first run
+  // 2. OAuth schema: create it on first run, upgrade it after better-auth updates
+  const archivedAuthTables = await migrateAuthSchema();
+  if (archivedAuthTables.length) {
+    console.log(`OAuth schema upgraded; previous OAuth clients/tokens kept in ${archivedAuthTables.join(', ')}. Reconnect MCP clients.`);
+  }
+
+  // 3. Auto-ingest on first run
   if (getDocumentCount() === 0) {
     console.log('First run — auto-ingesting existing knowledge base...');
     const home = homedir();
@@ -59,7 +66,7 @@ export async function start() {
     }
   }
 
-  // 3. Express setup
+  // 4. Express setup
   const app = express();
 
   const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -87,29 +94,32 @@ export async function start() {
   app.all('/api/auth/*', corsMiddleware, toNodeHandler(auth));
 
   // --- Well-known OAuth discovery endpoints ---
-  // These return Web Response objects, so we convert to Express responses
-  const { oAuthDiscoveryMetadata, oAuthProtectedResourceMetadata } = await import('better-auth/plugins');
-  const discoveryHandler = oAuthDiscoveryMetadata(auth);
-  const resourceHandler = oAuthProtectedResourceMetadata(auth);
-
-  const handleOAuthDiscovery = async (req, res) => {
-    const url = `${process.env.BETTER_AUTH_URL || 'http://localhost:' + port}/.well-known/oauth-authorization-server`;
-    const webRes = await discoveryHandler(new Request(url));
-    const data = await webRes.json();
-    res.json(data);
+  // The issuer is ${BASE_URL}/api/auth, so RFC 8414 clients look for metadata at
+  // /.well-known/<type>/api/auth; older clients use the bare /.well-known/<type>.
+  const sendWebResponse = async (webRes, res) => {
+    res.status(webRes.status);
+    webRes.headers.forEach((value, key) => res.setHeader(key, value));
+    res.send(Buffer.from(await webRes.arrayBuffer()));
   };
-  app.get('/.well-known/oauth-authorization-server', corsMiddleware, handleOAuthDiscovery);
-  app.get('/.well-known/openid-configuration', corsMiddleware, handleOAuthDiscovery);
-  app.get('/.well-known/oauth-protected-resource', corsMiddleware, async (req, res) => {
-    const url = `${process.env.BETTER_AUTH_URL || 'http://localhost:' + port}${req.originalUrl}`;
-    const webRes = await resourceHandler(new Request(url));
-    const data = await webRes.json();
-    res.json(data);
-  });
+  const authServerMetadata = oauthProviderAuthServerMetadata(auth);
+  const openIdMetadata = oauthProviderOpenIdConfigMetadata(auth);
+  const metadataRoute = handler => async (req, res) => {
+    await sendWebResponse(await handler(new Request(`${BASE_URL}${req.originalUrl}`)), res);
+  };
+  app.get(['/.well-known/oauth-authorization-server', '/.well-known/oauth-authorization-server/api/auth'],
+    corsMiddleware, metadataRoute(authServerMetadata));
+  app.get(['/.well-known/openid-configuration', '/.well-known/openid-configuration/api/auth'],
+    corsMiddleware, metadataRoute(openIdMetadata));
+  // RFC 9728 protected resource metadata, served by the mcp plugin itself.
+  app.get(['/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource/mcp'],
+    corsMiddleware, toNodeHandler(auth));
 
   // --- Sign-in page for OAuth consent flow ---
   app.get('/sign-in', (req, res) => {
     res.sendFile(join(__dirname, 'public', 'sign-in.html'));
+  });
+  app.get('/consent', (req, res) => {
+    res.sendFile(join(__dirname, 'public', 'consent.html'));
   });
 
   // Request logging for debugging
@@ -152,21 +162,17 @@ export async function start() {
         return next();
       }
 
-      // Otherwise validate as OAuth token via better-auth
-      try {
-        const session = await auth.api.getMcpSession({
-          headers: req.headers,
-        });
-        if (session) {
-          req.apiService = 'oauth';
-          req.oauthSession = session;
-          return next();
-        }
-      } catch {
-        // Fall through to 401
+      // Otherwise validate as an OAuth access token issued by this server
+      const claims = await verifyAccessToken(token);
+      if (claims) {
+        req.apiService = 'oauth';
+        req.oauthClaims = claims;
+        return next();
       }
     }
 
+    // RFC 9728: point MCP clients at the metadata that starts the OAuth flow.
+    res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${BASE_URL}/.well-known/oauth-protected-resource/mcp"`);
     return res.status(401).json({ error: 'Missing or invalid authentication. Provide X-API-Key header or OAuth Bearer token.' });
   };
 

@@ -180,7 +180,8 @@ The loop in detail:
 
 **Security**
 - bcrypt password hashing with HttpOnly session cookies
-- Dual auth: API keys (fast path) + OAuth Bearer tokens
+- Dual auth: API keys (fast path) + OAuth 2.1 Bearer tokens (signed JWTs bound to the MCP resource)
+- No self-registration: OAuth accounts are created by the operator with `kb auth add-user`
 - Three separate API keys for Claude, OpenAI, and Gemini
 - Safety review tool checks KB history before destructive actions
 - No external dependencies for core functionality

@@ -102,6 +102,7 @@ const commands = {
   },
   export:   () => import('../src/cli/export-cli.js').then(m => m.exportCmd(args)),
   restore:  () => import('../src/cli/restore-cli.js').then(m => m.restoreCmd(args)),
+  auth:     () => import('../src/cli/auth-cli.js').then(m => m.authCmd(args)),
 };
 
 if (!command || !commands[command]) {
@@ -128,6 +129,7 @@ Commands:
   capture-fix-json <payload.json> [vault]      Capture a fix from JSON
   export             Export vault docs to a portable bundle (--out=dir, --dry-run, --json)
   restore <bundle>   Restore from a bundle (--dry-run, --overwrite, --yes, --strict, --no-embeddings)
+  auth add-user <email>  Create an account that can approve OAuth/MCP clients (--password-stdin)
   setup              Interactive setup wizard (--auto for agent mode)
 `);
   process.exit(command ? 1 : 0);

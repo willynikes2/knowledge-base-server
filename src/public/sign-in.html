@@ -122,7 +122,7 @@
         const params = new URLSearchParams(window.location.search);
         if (params.get('response_type')) {
           // OAuth flow: redirect back to authorize endpoint with all params
-          window.location.href = '/api/auth/mcp/authorize?' + params.toString();
+          window.location.href = '/api/auth/oauth2/authorize?' + params.toString();
         } else {
           const redirectTo = params.get('redirect') || params.get('callbackURL') || '/';
           window.location.href = redirectTo;

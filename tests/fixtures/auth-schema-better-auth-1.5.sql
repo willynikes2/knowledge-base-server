@@ -1,0 +1,15 @@
+CREATE TABLE IF NOT EXISTS "user" ("id" text not null primary key, "name" text not null, "email" text not null unique, "emailVerified" integer not null, "image" text, "createdAt" date not null, "updatedAt" date not null);
+CREATE TABLE IF NOT EXISTS "session" ("id" text not null primary key, "expiresAt" date not null, "token" text not null unique, "createdAt" date not null, "updatedAt" date not null, "ipAddress" text, "userAgent" text, "userId" text not null references "user" ("id") on delete cascade);
+CREATE TABLE IF NOT EXISTS "account" ("id" text not null primary key, "accountId" text not null, "providerId" text not null, "userId" text not null references "user" ("id") on delete cascade, "accessToken" text, "refreshToken" text, "idToken" text, "accessTokenExpiresAt" date, "refreshTokenExpiresAt" date, "scope" text, "password" text, "createdAt" date not null, "updatedAt" date not null);
+CREATE TABLE IF NOT EXISTS "verification" ("id" text not null primary key, "identifier" text not null, "value" text not null, "expiresAt" date not null, "createdAt" date not null, "updatedAt" date not null);
+CREATE TABLE IF NOT EXISTS "oauthApplication" ("id" text not null primary key, "name" text not null, "icon" text, "metadata" text, "clientId" text not null unique, "clientSecret" text, "redirectUrls" text not null, "type" text not null, "disabled" integer, "userId" text references "user" ("id") on delete cascade, "createdAt" date not null, "updatedAt" date not null);
+CREATE TABLE IF NOT EXISTS "oauthAccessToken" ("id" text not null primary key, "accessToken" text not null unique, "refreshToken" text not null unique, "accessTokenExpiresAt" date not null, "refreshTokenExpiresAt" date not null, "clientId" text not null references "oauthApplication" ("clientId") on delete cascade, "userId" text references "user" ("id") on delete cascade, "scopes" text not null, "createdAt" date not null, "updatedAt" date not null);
+CREATE TABLE IF NOT EXISTS "oauthConsent" ("id" text not null primary key, "clientId" text not null references "oauthApplication" ("clientId") on delete cascade, "userId" text not null references "user" ("id") on delete cascade, "scopes" text not null, "createdAt" date not null, "updatedAt" date not null, "consentGiven" integer not null);
+CREATE INDEX "session_userId_idx" on "session" ("userId");
+CREATE INDEX "account_userId_idx" on "account" ("userId");
+CREATE INDEX "verification_identifier_idx" on "verification" ("identifier");
+CREATE INDEX "oauthApplication_userId_idx" on "oauthApplication" ("userId");
+CREATE INDEX "oauthAccessToken_clientId_idx" on "oauthAccessToken" ("clientId");
+CREATE INDEX "oauthAccessToken_userId_idx" on "oauthAccessToken" ("userId");
+CREATE INDEX "oauthConsent_clientId_idx" on "oauthConsent" ("clientId");
+CREATE INDEX "oauthConsent_userId_idx" on "oauthConsent" ("userId");

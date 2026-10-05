@@ -154,8 +154,8 @@ Add it in `server.js` before the `brainAuth` middleware, like the `/api/v1/healt
 **Auth middleware chain (`brainAuth`):**
 1. Check `X-API-Key` header against env vars (`KB_API_KEY_CLAUDE`, `KB_API_KEY_OPENAI`, `KB_API_KEY_GEMINI`)
 2. Check `Authorization: Bearer <token>` against same API keys
-3. Validate as OAuth token via better-auth
-4. Reject with 401
+3. Verify as an OAuth access token (a JWT signed by this server, audience `<BETTER_AUTH_URL>/mcp` or the bare origin)
+4. Reject with 401 and a `WWW-Authenticate: Bearer resource_metadata=...` challenge so MCP clients can start OAuth
 
 ### src/mcp-http.js -- HTTP MCP Transport
 
@@ -261,7 +261,7 @@ Dashboard auth uses bcrypt password hashing with session cookies. The session st
 
 **To swap to a different auth provider:** The `authMiddleware` function is the gate. Replace `checkPassword()` with your provider's verification (LDAP, SSO, etc.) and update `loginHandler` accordingly.
 
-**OAuth (remote access):** Configured in `src/auth-oauth.js` using better-auth with the MCP plugin. The OAuth database is separate (`auth.db`) from the main KB database.
+**OAuth (remote access):** Configured in `src/auth-oauth.js` using better-auth with the `@better-auth/mcp` plugin (an OAuth 2.1 provider). The OAuth database is separate (`auth.db`) from the main KB database, and its schema is created or upgraded on every `kb start`. Public sign-up is disabled; accounts are created with `kb auth add-user`.
 
 ---
 
@@ -416,7 +416,7 @@ The current system is single-user. To support multiple users:
 
 1. **API keys:** Add per-user keys in `.env` (e.g., `KB_API_KEY_USER_ALICE`, `KB_API_KEY_USER_BOB`). Update `src/middleware/api-key.js` to dynamically read all `KB_API_KEY_*` vars.
 
-2. **OAuth:** The better-auth setup in `src/auth-oauth.js` already supports multiple users. Enable email+password registration or add social providers.
+2. **OAuth:** The better-auth setup in `src/auth-oauth.js` already supports multiple users: add each one with `kb auth add-user <email>`. Do not re-enable public sign-up. Every account can approve clients with full KB access, so anyone able to register would get that access.
 
 3. **Data isolation:** Currently all users share one database. For per-user isolation, partition by `source` or add a `user_id` column to the `documents` table.
 
@@ -442,14 +442,20 @@ BETTER_AUTH_SECRET=<random-64-char-string>
 BETTER_AUTH_URL=https://your-domain.com
 ```
 
-**Step 2:** The OAuth discovery endpoints are auto-configured:
-- `/.well-known/oauth-authorization-server`
+**Step 2:** Create the account you will sign in with. Public sign-up is disabled, so this is the only way to create one:
+```bash
+kb auth add-user you@example.com          # prompts for a password
+echo "$PASSWORD" | kb auth add-user you@example.com --password-stdin
+```
+
+**Step 3:** Start the server (`kb start`). It creates the OAuth tables on first run and serves discovery at:
+- `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/mcp` (RFC 9728)
+- `/.well-known/oauth-authorization-server` and `/.well-known/oauth-authorization-server/api/auth` (RFC 8414)
 - `/.well-known/openid-configuration`
-- `/.well-known/oauth-protected-resource`
 
-**Step 3:** The sign-in page at `/sign-in` handles the consent flow. Users authenticate with email+password.
+**Step 4:** In Claude.ai, add a custom connector with the URL `https://your-domain.com/mcp`. Claude registers itself, sends you to `/sign-in`, then `/consent`; approve it and Claude receives a token bound to your `/mcp` resource.
 
-**Step 4:** MCP clients discover auth via the well-known endpoints, redirect users to `/sign-in`, and receive tokens via the OAuth flow.
+Upgrading from a release that used better-auth's built-in `mcp` plugin (before 1.7): the first `kb start` moves the old OAuth tables aside as `legacy_*` (nothing is deleted) and existing accounts keep working, but previously connected MCP clients have to be connected again.
 
 ---
 
