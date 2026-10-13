@@ -13,7 +13,7 @@ import authRoutes from './routes/session-routes.js';
 import apiRoutes from './routes/api.js';
 import { toNodeHandler } from 'better-auth/node';
 import { oauthProviderAuthServerMetadata, oauthProviderOpenIdConfigMetadata } from '@better-auth/oauth-provider';
-import { auth, migrateAuthSchema, verifyAccessToken, BASE_URL } from './auth-oauth.js';
+import { auth, migrateAuthSchema, verifyAccessToken, mcpChallenge, protectedResourceMetadata, BASE_URL } from './auth-oauth.js';
 import { createApiKeyMiddleware } from './middleware/api-key.js';
 import v1Router from './routes/v1.js';
 import openapiRoute from './routes/openapi.js';
@@ -110,9 +110,9 @@ export async function start() {
     corsMiddleware, metadataRoute(authServerMetadata));
   app.get(['/.well-known/openid-configuration', '/.well-known/openid-configuration/api/auth'],
     corsMiddleware, metadataRoute(openIdMetadata));
-  // RFC 9728 protected resource metadata, served by the mcp plugin itself.
+  // RFC 9728 protected resource metadata: the mcp plugin's document plus the scopes to request.
   app.get(['/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource/mcp'],
-    corsMiddleware, toNodeHandler(auth));
+    corsMiddleware, async (req, res) => sendWebResponse(await protectedResourceMetadata(req.path), res));
 
   // --- Sign-in page for OAuth consent flow ---
   app.get('/sign-in', (req, res) => {
@@ -172,7 +172,7 @@ export async function start() {
     }
 
     // RFC 9728: point MCP clients at the metadata that starts the OAuth flow.
-    res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${BASE_URL}/.well-known/oauth-protected-resource/mcp"`);
+    res.setHeader('WWW-Authenticate', mcpChallenge());
     return res.status(401).json({ error: 'Missing or invalid authentication. Provide X-API-Key header or OAuth Bearer token.' });
   };
 

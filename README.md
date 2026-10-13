@@ -465,6 +465,36 @@ Point your MCP client at the stdio transport:
 }
 ```
 
+### ChatGPT plugin (remote MCP with OAuth)
+
+The HTTP MCP endpoint at `https://your-domain.com/mcp` signs clients in through OAuth. A ChatGPT plugin only shows its Connect button when the plugin's `mcp.json` declares that. Without the `auth` block, ChatGPT treats the server as needing no sign-in, and the server refuses every request.
+
+```json
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "knowledge-base": {
+      "type": "streamable-http",
+      "url": "https://your-domain.com/mcp",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth",
+            "client": { "mode": "dcr" },
+            "baseScopes": ["openid", "offline_access"]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+- `dcr`: ChatGPT registers itself as an OAuth client. The package holds no client ID, secret or API key.
+- Endpoints are found through discovery (`/.well-known/oauth-protected-resource/mcp`), so no URL overrides are needed.
+- `offline_access` gets ChatGPT a refresh token. Without it you sign in again every hour.
+- Sign in with the account created by `kb auth add-user <email>`. Public sign-up is off.
+
 ### ChatGPT Custom GPTs (REST API)
 
 1. Import the OpenAPI spec from `https://your-domain.com/openapi.json`

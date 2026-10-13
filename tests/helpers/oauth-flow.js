@@ -42,7 +42,7 @@ export function createOAuthClient(auth, baseUrl) {
   }
 
   /** Runs the flow up to the consent decision. Returns what the token step needs. */
-  async function authorize(cookie, { resource = `${baseUrl}/mcp`, accept = true } = {}) {
+  async function authorize(cookie, { resource = `${baseUrl}/mcp`, accept = true, scope = 'openid profile email offline_access' } = {}) {
     const meta = await metadata();
     const clientId = await register(meta);
     const verifier = randomBytes(32).toString('base64url');
@@ -52,7 +52,7 @@ export function createOAuthClient(auth, baseUrl) {
       redirect_uri: REDIRECT_URI,
       code_challenge: createHash('sha256').update(verifier).digest('base64url'),
       code_challenge_method: 'S256',
-      scope: 'openid profile email offline_access',
+      scope,
       state: 'state-123',
     });
     if (resource) query.set('resource', resource);

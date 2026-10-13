@@ -15,6 +15,10 @@ export const BASE_URL = (process.env.BETTER_AUTH_URL || `http://localhost:${proc
 export const MCP_RESOURCE = `${BASE_URL}/mcp`;
 const ACCEPTED_AUDIENCES = [MCP_RESOURCE, BASE_URL];
 
+/** Scopes an MCP client should request: an identity, plus a refresh token so it stays connected. */
+export const MCP_SCOPES = ['openid', 'offline_access'];
+const RESOURCE_METADATA_URL = `${BASE_URL}/.well-known/oauth-protected-resource/mcp`;
+
 const authDb = new Database(AUTH_DB_PATH);
 
 // better-auth stores string[] columns as TEXT on SQLite, then warns about it on
@@ -118,6 +122,23 @@ export async function addUser({ email, password, name }) {
     password: await ctx.password.hash(password),
   });
   return user;
+}
+
+/** RFC 9728 challenge that points an unauthenticated MCP client at the OAuth flow. */
+export const mcpChallenge = () => `Bearer resource_metadata="${RESOURCE_METADATA_URL}", scope="${MCP_SCOPES.join(' ')}"`;
+
+/**
+ * RFC 9728 protected resource metadata for the MCP endpoint. The mcp plugin leaves
+ * identity and refresh scopes out of it; clients such as ChatGPT read scopes_supported
+ * to decide what to request, so the scopes this server needs are added here.
+ */
+export async function protectedResourceMetadata(path) {
+  const res = await auth.handler(new Request(`${BASE_URL}${path}`));
+  if (!res.ok) return res;
+  const metadata = await res.json();
+  const headers = new Headers(res.headers);
+  headers.delete('content-length');
+  return Response.json({ ...metadata, scopes_supported: metadata.scopes_supported ?? MCP_SCOPES }, { headers });
 }
 
 /** Verify an OAuth access token (a JWT signed by this server). Returns its claims or null. */
