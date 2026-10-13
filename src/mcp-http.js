@@ -1,21 +1,38 @@
 import { randomUUID } from 'crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { getHttpToolDefinitions } from './tools.js';
+import { MCP_SCOPES } from './auth-oauth.js';
+
+// Every tool needs an OAuth token. ChatGPT reads securitySchemes to offer sign-in
+// rather than calling anonymously.
+const SECURITY_SCHEMES = [{ type: 'oauth2', scopes: MCP_SCOPES }];
 
 /**
  * Create a fresh MCP server instance with all HTTP-safe tools registered.
  * A new instance is created per session to keep state isolated.
  */
-function createMcpServer() {
+export function createMcpServer() {
   const server = new McpServer({
     name: 'knowledge-base-brain',
     version: '1.0.0',
   });
 
   for (const tool of getHttpToolDefinitions()) {
-    server.tool(tool.name, tool.description, tool.schema, tool.handler);
+    server.registerTool(tool.name, {
+      description: tool.description,
+      inputSchema: tool.schema,
+      _meta: { securitySchemes: SECURITY_SCHEMES },
+    }, tool.handler);
   }
+
+  // The SDK only passes _meta through to tools/list; ChatGPT also reads the top-level field.
+  const listTools = server.server._requestHandlers.get('tools/list');
+  server.server.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
+    const result = await listTools(request, extra);
+    return { ...result, tools: result.tools.map(tool => ({ ...tool, securitySchemes: SECURITY_SCHEMES })) };
+  });
 
   return server;
 }

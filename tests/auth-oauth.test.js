@@ -18,11 +18,14 @@ const OWNER = { email: 'owner@example.test', password: 'correct horse battery st
 let auth;
 let oauth;
 let verifyAccessToken;
+let mcpChallenge;
+let protectedResourceMetadata;
+let MCP_SCOPES;
 
 describe('OAuth provider access', () => {
   before(async () => {
     const mod = await import('../src/auth-oauth.js');
-    ({ auth, verifyAccessToken } = mod);
+    ({ auth, verifyAccessToken, mcpChallenge, protectedResourceMetadata, MCP_SCOPES } = mod);
     assert.deepEqual(await mod.migrateAuthSchema(), [], 'a fresh database has nothing to archive');
     await mod.addUser(OWNER);
     oauth = createOAuthClient(auth, BASE);
@@ -92,5 +95,34 @@ describe('OAuth provider access', () => {
     assert.equal(await verifyAccessToken('not-a-token'), null);
     assert.equal(await verifyAccessToken(`${header}.${forgedPayload}.${signature}`), null, 'modified claims were accepted');
     assert.equal(await verifyAccessToken(`${header}.${payload}.${signature.slice(0, -4)}AAAA`), null, 'bad signature was accepted');
+  });
+
+  it('tells unauthenticated MCP clients where to start and which scopes to ask for', async () => {
+    const challenge = mcpChallenge();
+    assert.match(challenge, /^Bearer /);
+    assert.ok(challenge.includes(`resource_metadata="${BASE}/.well-known/oauth-protected-resource/mcp"`), challenge);
+    assert.ok(challenge.includes(`scope="${MCP_SCOPES.join(' ')}"`), challenge);
+  });
+
+  it('publishes the MCP resource, its authorization server and the scopes to request', async () => {
+    for (const path of ['/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource/mcp']) {
+      const res = await protectedResourceMetadata(path);
+      assert.equal(res.status, 200, path);
+      const metadata = await res.json();
+      assert.equal(metadata.resource, `${BASE}/mcp`);
+      assert.deepEqual(metadata.authorization_servers, [`${BASE}/api/auth`]);
+      assert.deepEqual(metadata.scopes_supported, MCP_SCOPES);
+    }
+  });
+
+  it('gives a client that asks for exactly the advertised scopes a usable, refreshable token', async () => {
+    const { cookie } = await oauth.signIn(OWNER.email, OWNER.password);
+    const grant = await oauth.authorize(cookie, { scope: MCP_SCOPES.join(' ') });
+    const tokens = await oauth.exchange(grant);
+
+    assert.ok(await verifyAccessToken(tokens.access_token), 'access token was not accepted');
+    assert.ok(tokens.refresh_token, 'no refresh token: the client would have to sign in again every hour');
+    const refreshed = await oauth.refresh(grant, tokens.refresh_token);
+    assert.ok(await verifyAccessToken(refreshed.access_token), 'refreshed access token was not accepted');
   });
 });
