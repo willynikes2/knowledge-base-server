@@ -134,7 +134,8 @@ These are written to `runs.jsonl` by the swarm at the final review, and by the c
 ## Phase 2 (named, not built here)
 
 **Replay proof:**
-- re-run a fixed set of past tasks on a cheap model (Qwen first), with and without their `test`-group patterns' sibling `teach` patterns;
+- re-run, on a cheap model (Qwen first), past tasks whose original mistake belongs to a `test`-group pattern, once with that pattern delivered and once without;
+- because `test` patterns were never delivered before, any lift comes from the pattern and not from earlier exposure;
 - the sample size and stopping rule are pre-registered;
 - the endpoint is the first-review pass rate.
 
