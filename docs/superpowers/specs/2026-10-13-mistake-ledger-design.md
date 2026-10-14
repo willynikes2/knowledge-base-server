@@ -6,6 +6,12 @@
 - home A: inside the knowledge-base server;
 - sections 1–5.
 
+The operator approved this written spec on 2026-10-14. The build is planned in two parts:
+- `docs/superpowers/plans/2026-10-14-mistake-ledger.md` (this repository);
+- `docs/plans/2026-10-14-swarm-mistakes.md` (agent-swarm).
+
+The first plan lists the choices made where this spec is silent ("Decisions made while planning").
+
 **Grounding (KB):**
 - #3370 (WikiSkill: three layers of immutable traces, a compiled wiki and lean skills; SkillOpt: validation-gated edits);
 - #3177 (capture the fix, not just the trace; instruction files that only grow);
