@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import matter from 'gray-matter';
+import { readNote, writeNote } from '../utils/frontmatter.js';
 import { scanVault } from '../vault/indexer.js';
 
 const CLAUDE_PATH = process.env.CLAUDE_PATH || 'claude';
@@ -68,7 +68,7 @@ export async function summarizeUnsummarized(vaultPath, { dryRun = false, limit =
     try {
       const raw = readFileSync(filePath, 'utf-8');
       if (!raw.trim()) continue;
-      const { data: fm, content: body } = matter(raw);
+      const { data: fm, content: body } = readNote(raw);
       if (fm.summary) continue; // already has summary
       if (body.trim().length < 100) continue; // too short to summarize
       needsSummary.push({ filePath, fm, body, rel: filePath.replace(vaultPath + '/', '') });
@@ -100,7 +100,7 @@ export async function summarizeUnsummarized(vaultPath, { dryRun = false, limit =
         summary: result.summary,
         key_topics: result.key_topics,
       };
-      const updated = matter.stringify(note.body, updatedFm);
+      const updated = writeNote(note.body, updatedFm);
       writeFileSync(note.filePath, updated);
     }
 

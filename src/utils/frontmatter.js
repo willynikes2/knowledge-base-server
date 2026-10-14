@@ -1,4 +1,5 @@
 // src/utils/frontmatter.js
+import matter from 'gray-matter';
 
 /**
  * Format tags as YAML block-list for Obsidian compatibility.
@@ -17,4 +18,30 @@ export function formatYamlTags(tags) {
     }
     return `  - ${t}`;
   }).join('\n');
+}
+
+
+const refuse = () => { throw new Error('only YAML note headers are read'); };
+const DATA_ONLY = { engines: { javascript: refuse, js: refuse, coffee: refuse, coffeescript: refuse, cson: refuse, toml: refuse, json: refuse } };
+
+/**
+ * Read a note's header and body. A note header is data: only a YAML header is read.
+ * A header that names another language (for example a code language) is refused, so nothing in a note is ever run.
+ * @param {string} content - the whole note
+ * @returns {{ data: object, content: string }}
+ */
+export function readNote(content) {
+  // A language name starts with a letter; a line of four or more dashes is a rule line, not a header.
+  const declared = String(content).match(/^---[ \t]*([A-Za-z][A-Za-z0-9_]*)[ \t]*\r?\n/)?.[1];
+  if (declared && !/^ya?ml$/i.test(declared)) refuse();
+  const { data, content: body } = matter(String(content), DATA_ONLY);
+  return { data, content: body };
+}
+
+/**
+ * Write a note from a body and a header object (YAML). The body is written as it is: it is never read as a header,
+ * whatever it starts with. (Passing the body as a string would make the library parse it again.)
+ */
+export function writeNote(body, data) {
+  return matter.stringify({ content: String(body), data: {} }, data, DATA_ONLY);
 }
