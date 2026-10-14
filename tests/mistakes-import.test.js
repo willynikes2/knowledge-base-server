@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { commitEvidence, findingsInBrief, fixCommit, importSdd, ledgerDirs, parseSddLedger } from '../src/mistakes/import-sdd.js';
 import { importSeed, seedRecord } from '../src/mistakes/import-seed.js';
-import { currentMistakes } from '../src/mistakes/store.js';
+import { currentMistakes, recordMistake } from '../src/mistakes/store.js';
 
 const PROGRESS = [
   '# SDD ledger — plan: docs/plans/demo.md',
@@ -181,7 +181,8 @@ describe('the seed catalogue', () => {
 
   it('maps a row to a weak record keyed by its KB id', () => {
     const r = seedRecord(row);
-    assert.deepStrictEqual([r.source, r.project, r.caught_by, r.key, r.task_text_ref, r.client_ok], ['seed', 'cod3x/kalshi', 'operator', 'seed:1510', 'kb:1510', true]);
+    assert.deepStrictEqual([r.source, r.project, r.caught_by, r.task_text_ref, r.client_ok], ['seed', 'cod3x/kalshi', 'operator', 'kb:1510', true]);
+    assert.match(r.key, /^seed:1510:[0-9a-f]{12}$/);
     assert.match(r.finding, /^GTC orders were really FOK\nSymptom: every order got 409\nWrong first guess: maintenance noise\nRoot cause: .*\nFix: 7f2634b/);
     assert.strictEqual(r.fix_commit, undefined);
     assert.deepStrictEqual(r.tags, ['bug-in-code', 'assumed server default differs from reality']);
@@ -201,5 +202,25 @@ describe('the seed catalogue', () => {
     assert.throws(() => importSeed(join(work, 'missing.json')), /cannot read the catalogue/);
     writeFileSync(join(work, 'obj.json'), '{"a":1}');
     assert.throws(() => importSeed(join(work, 'obj.json')), /must be a JSON array/);
+  });
+});
+
+describe('several catalogue rows from the same KB document', () => {
+  const base = { kb_id: 1510, project: 'p', kind: 'bug-in-code' };
+
+  it('are all imported, once each', () => {
+    const file = join(work, 'shared.json');
+    writeFileSync(file, JSON.stringify([{ ...base, title: 'First mistake' }, { ...base, title: 'Second mistake' }, { ...base, kb_id: 7, title: 'Other doc' }]));
+    assert.deepStrictEqual([importSeed(file).added, importSeed(file).added], [3, 0]);
+    assert.strictEqual(currentMistakes().mistakes.length, 3);
+  });
+
+  it('a ledger imported with the old one-key-per-document rule is completed, not doubled', () => {
+    recordMistake({ ...seedRecord({ ...base, title: 'First mistake' }), key: 'seed:1510' }); // what the old importer wrote
+    const file = join(work, 'shared.json');
+    writeFileSync(file, JSON.stringify([{ ...base, title: 'First mistake' }, { ...base, title: 'Second mistake' }]));
+    const r = importSeed(file);
+    assert.deepStrictEqual([r.added, r.duplicates], [1, 1]);
+    assert.deepStrictEqual(currentMistakes().mistakes.map(m => m.task).sort(), ['First mistake', 'Second mistake']);
   });
 });
