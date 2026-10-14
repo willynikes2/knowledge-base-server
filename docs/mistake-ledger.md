@@ -37,7 +37,7 @@ A record with a fix commit is **strong** evidence; one without is **weak**.
    - **retire** — stop using an approved pattern.
    If any part of the reply is wrong, nothing changes.
 
-Half of the approved patterns go to the `teach` group and are given to agents. The other half go to the `test` group and are held back, so a later experiment can measure whether patterns help on agents that never saw them.
+Half of the approved patterns go to the `teach` group and are given to agents. The other half go to the `test` group and are held back, so a later experiment can measure whether patterns help on agents that never saw them. Only `teach` patterns are indexed: drafts, rejected and held-back patterns never appear in KB search. (The mistake records behind them stay searchable, so the later experiment runs its agents without KB access.)
 
 An approved pattern that no task has received for 90 days is listed on the next approval page. Nothing is retired automatically.
 

@@ -3476,3 +3476,4 @@ The code blocks above are as planned. The final review (Opus), the automated sec
 8. **The KB copy is made once** (`mirrorMistake` checks for an existing document) and is retried when the same record is sent again; imports report copies that failed.
 9. **The drafting model runs with every tool off** (`--tools ""`).
 10. Two security fixes for the whole server came out of this work and are on their own branch, `fix/api-key-bypass`: API keys are compared by value, and note headers are read as data only.
+11. **Only teach patterns are searchable.** The vault indexer skips pattern notes that are not approved or retired in the `teach` group, and removes an earlier entry when a pattern leaves it (`tests/mistakes-index.test.js`).
