@@ -14,7 +14,7 @@ import apiRoutes from './routes/api.js';
 import { toNodeHandler } from 'better-auth/node';
 import { oauthProviderAuthServerMetadata, oauthProviderOpenIdConfigMetadata } from '@better-auth/oauth-provider';
 import { auth, migrateAuthSchema, verifyAccessToken, mcpChallenge, protectedResourceMetadata, BASE_URL } from './auth-oauth.js';
-import { createApiKeyMiddleware } from './middleware/api-key.js';
+import { createBrainAuth } from './middleware/brain-auth.js';
 import v1Router from './routes/v1.js';
 import openapiRoute from './routes/openapi.js';
 import { mcpHttpHandler, mcpGetHandler } from './mcp-http.js';
@@ -138,43 +138,8 @@ export async function start() {
   app.use(apiRoutes);
 
   // --- Brain API (external access via remote domain or localhost) ---
-  const apiKeyAuth = createApiKeyMiddleware();
-
   // Auth middleware: accepts EITHER API key OR OAuth Bearer token
-  const brainAuth = async (req, res, next) => {
-    // Try API key first (fast path)
-    const apiKey = req.headers['x-api-key'];
-    if (apiKey) {
-      return apiKeyAuth(req, res, next);
-    }
-
-    // Try OAuth Bearer token
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      // Check if it's an API key in Bearer format
-      const token = authHeader.slice(7);
-      const keyMap = {};
-      if (process.env.KB_API_KEY_CLAUDE) keyMap[process.env.KB_API_KEY_CLAUDE] = 'claude';
-      if (process.env.KB_API_KEY_OPENAI) keyMap[process.env.KB_API_KEY_OPENAI] = 'openai';
-      if (process.env.KB_API_KEY_GEMINI) keyMap[process.env.KB_API_KEY_GEMINI] = 'gemini';
-      if (keyMap[token]) {
-        req.apiService = keyMap[token];
-        return next();
-      }
-
-      // Otherwise validate as an OAuth access token issued by this server
-      const claims = await verifyAccessToken(token);
-      if (claims) {
-        req.apiService = 'oauth';
-        req.oauthClaims = claims;
-        return next();
-      }
-    }
-
-    // RFC 9728: point MCP clients at the metadata that starts the OAuth flow.
-    res.setHeader('WWW-Authenticate', mcpChallenge());
-    return res.status(401).json({ error: 'Missing or invalid authentication. Provide X-API-Key header or OAuth Bearer token.' });
-  };
+  const brainAuth = createBrainAuth({ verifyAccessToken, challenge: mcpChallenge });
 
   // Public (no auth): OpenAPI spec + health
   app.get('/openapi.json', corsMiddleware, openapiRoute);
