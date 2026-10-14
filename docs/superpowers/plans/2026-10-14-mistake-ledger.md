@@ -2196,7 +2196,7 @@ Expected: PASS — 10 tests, 0 failures.
 
 ````bash
 git add src/mistakes/approval.js tests/mistakes-approval.test.js
-git commit -m "feat(mistakes): approval page and reply ("approve 1 and 3, edit 2: …, reject 4") applied all-or-nothing"
+git commit -m "feat(mistakes): approval page and reply ('approve 1 and 3, edit 2: …, reject 4') applied all-or-nothing"
 ````
 
 ---
