@@ -3470,7 +3470,7 @@ The code blocks above are as planned. The final review (Opus), the automated sec
 2. **The idempotency key is compared exactly.** It is never trimmed, cut or redacted; a key outside `[A-Za-z0-9_.:/#@-]{1,300}` is refused. `import-sdd` builds its key from a slug of the project name. A run's key is a JSON list of its parts.
 3. **Approval numbers are permanent.** `approval-latest.json` keeps `numbers`, `next` and `prints`; a reply is refused when a pattern changed after the page was made.
 4. **The ledger routes are for the swarm key only**, and that key opens nothing else (the v1 router and the server gate both enforce it). A record sent over HTTP is stored as `source: swarm` and cannot set `supersedes`. A server fault answers "The server could not complete this request."
-5. **`kb_mistake_record` is a local tool** (in `ADMIN_ONLY_TOOLS`); `kb_patterns_for` stays available over HTTP.
+5. **Both MCP tools are local only** (in `ADMIN_ONLY_TOOLS`). Remote agents get pitfalls through the swarm route.
 6. **Pattern notes are read as YAML data only** (`readNote`/`writeNote` in `src/utils/frontmatter.js`, from the security fix branch). A draft never overwrites an existing note file, readable or not.
 7. **A correction stays with the pattern that used the original** (`unassignedMistakes` follows the `supersedes` chain).
 8. **The KB copy is made once** (`mirrorMistake` checks for an existing document) and is retried when the same record is sent again; imports report copies that failed.

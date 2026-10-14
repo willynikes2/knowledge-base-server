@@ -59,7 +59,7 @@ describe('tools', () => {
     assert.ok(names.includes('kb_ingest'));
     assert.ok(names.includes('kb_write'));
     assert.ok(!names.includes('kb_mistake_record'));
-    assert.ok(names.includes('kb_patterns_for'));
+    assert.ok(!names.includes('kb_patterns_for'));
   });
 
   it('MCP stdio tools/list serializes every tool schema', () => {

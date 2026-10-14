@@ -312,11 +312,11 @@ bus-wait ticket:PF-1884 --since 12 --timeout-ms 30000
 
 See [docs/message-bus.md](docs/message-bus.md) for channel conventions and cross-model usage.
 
-### Mistake ledger tools
+### Mistake ledger tools (local stdio only)
 
 | Tool | Description |
 |------|-------------|
-| `kb_mistake_record` | Record a mistake a reviewer or test caught, with its fix (local stdio only) |
+| `kb_mistake_record` | Record a mistake a reviewer or test caught, with its fix |
 | `kb_patterns_for` | Get up to 3 approved "known pitfalls" that match a task |
 
 See [docs/mistake-ledger.md](docs/mistake-ledger.md).

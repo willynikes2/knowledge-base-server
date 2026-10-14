@@ -268,12 +268,12 @@ describe('who may use the ledger routes', () => {
     });
   });
 
-  it('recording by MCP is local only; fetching pitfalls is also offered over HTTP', () => {
+  it('recording and fetching pitfalls by MCP are local only', () => {
     const local = getToolDefinitions().map(t => t.name);
     const remote = getHttpToolDefinitions().map(t => t.name);
     assert.ok(local.includes('kb_mistake_record') && local.includes('kb_patterns_for'));
     assert.ok(!remote.includes('kb_mistake_record'));
-    assert.ok(remote.includes('kb_patterns_for'));
+    assert.ok(!remote.includes('kb_patterns_for'));
   });
 });
 
@@ -343,5 +343,32 @@ describe('the drafting model call', () => {
     assert.strictEqual(valueOf('--model'), 'some-model');
     assert.strictEqual(valueOf('--setting-sources'), '');
     assert.ok(args.includes('--strict-mcp-config') && args.includes('--no-session-persistence') && args.includes('-p'));
+  });
+});
+
+describe('redaction stays fast on long input', () => {
+  it('a megabyte of text with no secret takes well under a second', () => {
+    for (const text of ['a'.repeat(1_000_000), 'ab-'.repeat(333_334), 'token '.repeat(170_000), `x=${'b'.repeat(999_998)}`]) {
+      const started = Date.now();
+      redactSecrets(text);
+      assert.ok(Date.now() - started < 1000, `took ${Date.now() - started} ms on ${JSON.stringify(text.slice(0, 6))}…`);
+    }
+  });
+
+  it('a huge diff is cut at a line boundary before redaction, and its secrets are still removed', () => {
+    const secret = `sk-ant-api03-${filler(40)}`;
+    const diff = `+const k = "${secret}";\n${'+x\n'.repeat(400_000)}`;
+    const started = Date.now();
+    const r = validateMistake(record({ fix_diff: diff }));
+    assert.ok(Date.now() - started < 2000);
+    assert.ok(!r.fix_diff.includes(filler(20)));
+    assert.ok(Buffer.byteLength(r.fix_diff) <= 4096);
+  });
+});
+
+describe('fetching pitfalls is local or swarm only', () => {
+  it('kb_patterns_for is not offered to remote MCP clients', () => {
+    assert.ok(!getHttpToolDefinitions().map(t => t.name).includes('kb_patterns_for'));
+    assert.ok(getToolDefinitions().map(t => t.name).includes('kb_patterns_for'));
   });
 });
