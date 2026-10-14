@@ -1,6 +1,6 @@
 // src/cli/mistakes-cli.js — `kb mistakes …` and `kb patterns …`
 import { readFileSync } from 'fs';
-import { currentMistakes, recordMistake } from '../mistakes/store.js';
+import { currentMistakes, ledgerPath, readJsonl, recordMistake } from '../mistakes/store.js';
 import { mirrorMistake } from '../mistakes/mirror.js';
 import { importSdd } from '../mistakes/import-sdd.js';
 import { importSeed } from '../mistakes/import-seed.js';
@@ -31,6 +31,7 @@ const usage = (text) => { throw new Error(`\n${text}`); };
 const readJson = (file) => {
   try { return JSON.parse(readFileSync(file, 'utf8')); } catch (e) { throw new Error(`cannot read JSON from ${file}: ${e.message}`); }
 };
+const NOT_COPIED = (n) => `${n} could not be copied into the KB search (run the import again to retry).`;
 const pct = (rate) => (rate === null ? 'n/a' : `${Math.round(rate * 100)}%`);
 
 // Pattern notes are vault notes; reindexing makes a new or changed one searchable. Never fatal.
@@ -44,13 +45,16 @@ export async function mistakesCmd(args, { log = console.log, mirror = mirrorMist
     case 'import-sdd': {
       if (!target) usage(MISTAKES_USAGE);
       const r = importSdd(target, { project: option(args, 'project'), clientOk: flag(args, 'client-ok'), repo: option(args, 'repo'), mirror });
-      return log(`Imported ${r.added} mistakes from ${r.ledgers} ledger(s); ${r.duplicates} were already there; ${r.weak} have no fix commit (weak evidence).`);
+      log(`Imported ${r.added} mistakes from ${r.ledgers} ledger(s); ${r.duplicates} were already there; ${r.weak} have no fix commit (weak evidence).`);
+      if (r.unmirrored) log(NOT_COPIED(r.unmirrored));
+      return undefined;
     }
     case 'import-seed': {
       if (!target) usage(MISTAKES_USAGE);
       const r = importSeed(target, { mirror });
       log(`Imported ${r.added} of ${r.rows} catalogue rows; ${r.duplicates} were already there; ${r.skipped.length} skipped.`);
       for (const s of r.skipped) log(`  row ${s.row}: ${s.reason}`);
+      if (r.unmirrored) log(NOT_COPIED(r.unmirrored));
       return undefined;
     }
     case 'record': {
@@ -63,7 +67,7 @@ export async function mistakesCmd(args, { log = console.log, mirror = mirrorMist
     }
     case 'list': {
       const { mistakes, bad } = currentMistakes();
-      const shown = flag(args, 'unassigned') ? unassignedMistakes(mistakes, listPatterns(vaultPath()).patterns) : mistakes;
+      const shown = flag(args, 'unassigned') ? unassignedMistakes(mistakes, listPatterns(vaultPath()).patterns, readJsonl(ledgerPath()).rows) : mistakes;
       if (flag(args, 'json')) return log(JSON.stringify(shown, null, 2));
       for (const m of shown) log(`${m.id}  ${m.at.slice(0, 10)}  ${m.source.padEnd(6)} ${m.evidence.padEnd(6)} ${m.project} / ${m.task}: ${m.finding.replace(/\s+/g, ' ').slice(0, 90)}`);
       log(`${shown.length} mistake(s)${bad ? `; ${bad} unreadable line(s) in the ledger` : ''}.`);

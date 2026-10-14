@@ -35,6 +35,7 @@ const ADMIN_ONLY_TOOLS = new Set([
   'bus_send',
   'bus_inbox',
   'bus_wait',
+  'kb_mistake_record', // writes the ledger: local agents only
 ]);
 
 const TOOL_EXPORT_ROOT = resolve(process.env.KB_EXPORT_ROOT || join(homedir(), '.knowledge-base', 'exports'));

@@ -30,6 +30,15 @@ const upload = multer({
 
 const router = Router();
 
+// The swarm key is for the mistake ledger only: it opens none of the search, read, ingest or export routes.
+const LEDGER_ROUTES = new Set(['/mistakes', '/mistakes/metrics', '/patterns/for', '/runs']);
+router.use((req, res, next) => {
+  if (req.apiService === 'swarm' && !LEDGER_ROUTES.has(req.path.replace(/\/+$/, ''))) {
+    return res.status(403).json({ error: 'The swarm key can only use the mistake-ledger routes.' });
+  }
+  return next();
+});
+
 // Default vault path for capture functions
 const DEFAULT_VAULT_PATH = join(homedir(), 'knowledgebase');
 const REMOTE_EXPORT_ROOT = resolve(process.env.KB_EXPORT_ROOT || join(homedir(), '.knowledge-base', 'exports'));

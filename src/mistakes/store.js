@@ -4,11 +4,12 @@ import { appendFileSync, closeSync, existsSync, fstatSync, mkdirSync, openSync, 
 import { randomBytes } from 'crypto';
 import { homedir } from 'os';
 import { dirname, join } from 'path';
-import { redact } from '../capture/terminal.js';
+import { redactSecrets } from './redact.js';
 
 export const SOURCES = ['swarm', 'sdd', 'factory', 'manual', 'seed'];
 export const MAX_DIFF_BYTES = 4096;
-const CAUGHT_BY = /^(review(:[\w.-]+)?|test|operator)$/;
+const CAUGHT_BY = /^(review(:[\w.-]{1,60})?|test|operator)$/;
+const KEY = /^[A-Za-z0-9_.:/#@-]{1,300}$/;
 const COMMIT = /^[0-9a-f]{7,40}$/;
 const MISTAKE_ID = /^mk_[0-9A-HJKMNP-TV-Z]{26}$/;
 const PATTERN_ID = /^pt_[a-z0-9][a-z0-9-]*$/;
@@ -57,9 +58,17 @@ const fail = (message) => { throw new InputError(message); };
 const text = (value, name, max, { required = false } = {}) => {
   if (value === undefined || value === null || value === '') { if (required) fail(`${name} is required`); return null; }
   if (typeof value !== 'string') fail(`${name} must be a string`);
-  const clean = redact(value).trim();
+  const clean = redactSecrets(value).trim();
   if (!clean) { if (required) fail(`${name} is required`); return null; }
   return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
+};
+
+// The key decides whether a record is a repeat, so it is compared exactly: never trimmed, cut or redacted.
+// A key that would need any of that is refused, so two different keys can never become the same one.
+const keyOf = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string' || !KEY.test(value)) fail('key may use letters, digits and _ . : / # @ - only (at most 300 characters)');
+  return value;
 };
 
 function truncateBytes(s, max) {
@@ -115,14 +124,14 @@ export function validateMistake(input, { now = new Date() } = {}) {
     line,
     fix_commit: fixCommit,
     // Redact first: a secret that straddles the 4 KB cut would otherwise survive as a fragment.
-    fix_diff: fixDiff === null || !fixDiff.trim() ? null : truncateBytes(redact(fixDiff), MAX_DIFF_BYTES),
+    fix_diff: fixDiff === null || !fixDiff.trim() ? null : truncateBytes(redactSecrets(fixDiff), MAX_DIFF_BYTES),
     guard_test: text(input.guard_test, 'guard_test', 300),
     tags: normaliseTags(input.tags),
     pattern,
     supersedes,
     client_ok: true,
     evidence: fixCommit ? 'strong' : 'weak',
-    key: text(input.key, 'key', 300),
+    key: keyOf(input.key),
   };
 }
 
@@ -134,13 +143,17 @@ export function recordMistake(input, { now = new Date(), mirror = null } = {}) {
   const { rows } = readJsonl(ledgerPath());
   if (record.key) {
     const same = rows.find(r => r.key === record.key);
-    if (same) return { id: same.id, duplicate: true, mirrored: false };
+    // A repeat is not written again, but its KB copy is made now if an earlier attempt failed (the copy is made once).
+    if (same) return { id: same.id, duplicate: true, mirrored: copy(mirror, same) };
   }
   if (record.supersedes && !rows.some(r => r.id === record.supersedes)) fail(`supersedes names an unknown record: ${record.supersedes}`);
   appendJsonl(ledgerPath(), record);
-  let mirrored = false;
-  if (mirror) { try { mirror(record); mirrored = true; } catch { mirrored = false; } }
-  return { id: record.id, duplicate: false, mirrored };
+  return { id: record.id, duplicate: false, mirrored: copy(mirror, record) };
+}
+
+function copy(mirror, record) {
+  if (!mirror) return false;
+  try { mirror(record); return true; } catch { return false; }
 }
 
 // The ledger as it stands today: every record that no later record supersedes.

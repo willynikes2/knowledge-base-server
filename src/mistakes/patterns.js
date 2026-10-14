@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFile
 import { createHash } from 'crypto';
 import { homedir } from 'os';
 import { join } from 'path';
-import matter from 'gray-matter';
+import { readNote, writeNote } from '../utils/frontmatter.js';
 import { InputError } from './store.js';
 
 export const STATUSES = ['draft', 'approved', 'rejected', 'retired'];
@@ -69,7 +69,7 @@ export function writePattern(vault, input) {
   mkdirSync(dir, { recursive: true });
   const file = join(dir, `${p.id.slice(3)}.md`);
   const data = { title: `Pattern: ${p.name}`, type: 'pattern', ...p };
-  writeFileSync(`${file}.tmp`, matter.stringify(body(p), data));
+  writeFileSync(`${file}.tmp`, writeNote(body(p), data));
   renameSync(`${file}.tmp`, file);
   return p;
 }
@@ -81,7 +81,7 @@ export function listPatterns(vault) {
   const patterns = []; const skipped = [];
   for (const name of readdirSync(dir).filter(f => f.endsWith('.md')).sort()) {
     try {
-      const { data } = matter(readFileSync(join(dir, name), 'utf8'));
+      const { data } = readNote(readFileSync(join(dir, name), 'utf8'));
       const p = validatePattern(data);
       if (p.id !== `pt_${name.slice(0, -3)}`) fail(`id ${p.id} does not match the file name`);
       patterns.push(p);

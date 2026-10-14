@@ -16,7 +16,7 @@ afterEach(() => { delete process.env.KB_MISTAKES_HOME; rmSync(home, { recursive:
 describe('validateRun', () => {
   it('builds the row and its key', () => {
     const r = validateRun(run({ patterns_delivered: ['pt_a', 'pt_a', 'pt_b'] }), { now: new Date('2026-10-14T00:00:00Z') });
-    assert.strictEqual(r.key, 'swarm:browser-agent-demo:live-demo:claude-sonnet');
+    assert.strictEqual(r.key, '["swarm","browser-agent-demo","live-demo","claude-sonnet"]');
     assert.deepStrictEqual(r.patterns_delivered, ['pt_a', 'pt_b']);
     assert.strictEqual(r.at, '2026-10-14T00:00:00.000Z');
   });

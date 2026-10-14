@@ -23,11 +23,12 @@ export function importSeed(file, { now = () => new Date(), mirror = null } = {})
   let rows;
   try { rows = JSON.parse(readFileSync(file, 'utf8')); } catch (e) { throw new Error(`cannot read the catalogue ${file}: ${e.message}`); }
   if (!Array.isArray(rows)) throw new Error('the catalogue must be a JSON array');
-  const result = { rows: rows.length, added: 0, duplicates: 0, skipped: [] };
+  const result = { rows: rows.length, added: 0, duplicates: 0, skipped: [], ...(mirror ? { unmirrored: 0 } : {}) };
   rows.forEach((row, i) => {
     try {
       const r = recordMistake(seedRecord(row), { now: now(), mirror });
       if (r.duplicate) result.duplicates += 1; else result.added += 1;
+      if (mirror && !r.mirrored) result.unmirrored += 1;
     } catch (e) {
       result.skipped.push({ row: i, reason: e.message });
     }

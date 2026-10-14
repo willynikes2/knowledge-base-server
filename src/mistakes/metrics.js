@@ -22,7 +22,8 @@ export function validateRun(input, { now = new Date() } = {}) {
     model: label(input.model, 'model'), attempted, first_pass: firstPass, fix_rounds: whole(input.fix_rounds ?? 0, 'fix_rounds'),
     patterns_delivered: [...new Set(delivered)],
   };
-  return { ...row, key: `${row.source}:${row.project}:${row.run}:${row.model}` };
+  // The parts are kept apart (a JSON list), so "a:b" + "c" and "a" + "b:c" are different runs.
+  return { ...row, key: JSON.stringify([row.source, row.project, row.run, row.model]) };
 }
 
 // A run is written once per model: sending it again changes nothing.

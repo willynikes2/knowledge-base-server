@@ -1,6 +1,7 @@
 // src/mistakes/mirror.js — copy a ledger record into the KB as a searchable document (doc_type "mistake").
 // The ledger file stays the source of truth; this copy only makes the record findable with kb_search.
 import { ingestText } from '../ingest.js';
+import { getDb } from '../db.js';
 
 export function mistakeDocument(r) {
   const title = `Mistake: ${r.project} — ${r.task}`.slice(0, 200);
@@ -19,7 +20,10 @@ export function mistakeDocument(r) {
   return { title, content, tags: ['mistake', r.source, ...r.tags] };
 }
 
+// Makes the copy once: a record that already has its document is left alone, so retries are safe.
 export function mirrorMistake(record) {
+  const existing = getDb().prepare("SELECT id FROM documents WHERE doc_type = 'mistake' AND source = ? LIMIT 1").get(record.id);
+  if (existing) return existing;
   const { title, content, tags } = mistakeDocument(record);
   return ingestText(title, content, { doc_type: 'mistake', tags, source: record.id });
 }

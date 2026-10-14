@@ -68,7 +68,7 @@ describe('kb mistakes', () => {
     const run = join(work, 'run.json');
     writeFileSync(run, JSON.stringify({ source: 'sdd', project: 'demo', run: 'build-1', model: 'sonnet', attempted: 9, first_pass: 4, fix_rounds: 12 }));
     await mistakesCmd(['record-run', run], { log });
-    assert.deepStrictEqual(JSON.parse(lines[1]), { key: 'sdd:demo:build-1:sonnet', duplicate: false });
+    assert.deepStrictEqual(JSON.parse(lines[1]), { key: '["sdd","demo","build-1","sonnet"]', duplicate: false });
     await assert.rejects(mistakesCmd(['record', join(work, 'missing.json')], { log }), /cannot read JSON from .*missing\.json/);
     writeFileSync(rec, '{"source":"manual"}');
     await assert.rejects(mistakesCmd(['record', rec], { log, mirror: noMirror }), /client_ok is required/);

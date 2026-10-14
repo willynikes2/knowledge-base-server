@@ -1,11 +1,16 @@
 // src/mistakes/approval.js — the page the operator reads to approve drafts, and the reply that applies their decision.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs';
+import { createHash } from 'crypto';
 import { join } from 'path';
 import { currentMistakes, mistakesHome } from './store.js';
 import { MAX_RULE_WORDS, STALE_DAYS, countWords, listPatterns, setStatus, stalePatterns } from './patterns.js';
 import { readDeliveries } from './delivery.js';
 
 export const approvalMapPath = () => join(mistakesHome(), 'approval-latest.json');
+
+// What the operator saw of a pattern on the page. A decision is only applied while this still matches.
+export const fingerprint = (p) => createHash('sha256').update(JSON.stringify([p.name, p.rule, p.bad, p.good, p.evidence])).digest('hex').slice(0, 16);
+const readMap = () => { try { return JSON.parse(readFileSync(approvalMapPath(), 'utf8')); } catch { return {}; } };
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 const clip = (s, max) => { const t = String(s ?? '').replace(/\s+/g, ' ').trim(); return t.length > max ? `${t.slice(0, max - 1)}…` : t; };
@@ -36,21 +41,26 @@ function draftCard(n, p, byId) {
 }
 
 // Numbers on the page are the numbers used in the reply: drafts first, then the unused patterns.
-export function buildApprovalPage({ drafts, stale, mistakes, skipped = [], lastUsed = new Map(), now = new Date() }) {
+// `numbers` (pattern id → number) keeps a pattern's number from one page to the next; without it they count from 1.
+export function buildApprovalPage({ drafts: draftList, stale: staleList, mistakes, skipped = [], lastUsed = new Map(), now = new Date(), numbers = null }) {
   const byId = new Map(mistakes.map(m => [m.id, m]));
-  const items = [...drafts.map(p => ({ id: p.id, kind: 'draft' })), ...stale.map(p => ({ id: p.id, kind: 'stale' }))].map((x, i) => ({ n: i + 1, ...x }));
+  const fresh = new Map([...draftList, ...staleList].map((p, i) => [p.id, i + 1]));
+  const numberOf = (p) => numbers?.[p.id] ?? fresh.get(p.id);
+  const byNumber = (a, b) => numberOf(a) - numberOf(b);
+  const drafts = [...draftList].sort(byNumber); const stale = [...staleList].sort(byNumber);
+  const items = [...drafts.map(p => ({ n: numberOf(p), id: p.id, kind: 'draft' })), ...stale.map(p => ({ n: numberOf(p), id: p.id, kind: 'stale' }))];
   const date = now.toISOString().slice(0, 10);
   const draftHtml = drafts.length
-    ? drafts.map((p, i) => draftCard(i + 1, p, byId)).join('\n')
+    ? drafts.map(p => draftCard(numberOf(p), p, byId)).join('\n')
     : '<p class="muted">No new patterns to review.</p>';
   const staleHtml = stale.length ? `<h2>Not used for ${STALE_DAYS} days</h2><p class="muted">These approved patterns matched no task lately. Retire one if it no longer helps; otherwise leave it.</p>
-${stale.map((p, i) => `<div class="card"><h3><span class="n">${drafts.length + i + 1}.</span> ${esc(p.name)}</h3><p class="rule">${esc(p.rule)}</p>
+${stale.map(p => `<div class="card"><h3><span class="n">${numberOf(p)}.</span> ${esc(p.name)}</h3><p class="rule">${esc(p.rule)}</p>
 <p class="muted">Approved ${esc(String(p.approved_at ?? '').slice(0, 10))} · last given to a task: ${esc(lastUsed.get(p.id)?.slice(0, 10) ?? 'never')}</p></div>`).join('\n')}` : '';
   const skippedHtml = skipped.length ? `<h2 class="warn">Notes that could not be read</h2><div class="card"><ul>${skipped.map(s => `<li><code>${esc(s.file)}</code>: ${esc(s.reason)}</li>`).join('')}</ul></div>` : '';
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pattern approvals</title><style>${CSS}</style></head><body><main>
 <h1>Pattern approvals</h1><p class="muted">${esc(date)} · ${drafts.length} new · ${stale.length} unused</p>
-<div class="card how"><strong>How to reply.</strong> Use the numbers below, for example:<br><code>approve 1 and 3, edit 2: &lt;your wording of the rule&gt;, reject 4${stale.length ? `, retire ${drafts.length + 1}` : ''}</code>
+<div class="card how"><strong>How to reply.</strong> Use the numbers below, for example:<br><code>approve 1 and 3, edit 2: &lt;your wording of the rule&gt;, reject 4${stale.length ? `, retire ${numberOf(stale[0])}` : ''}</code>
 <p class="muted">Approve: agents may be given this rule. Edit: approve it with your wording (at most ${MAX_RULE_WORDS} words). Reject: never propose it again from these mistakes. Anything you leave out stays as it is. Half of the approved patterns are held back from agents, so a later test can measure whether patterns help.</p></div>
 <h2>New patterns</h2>
 ${draftHtml}
@@ -68,7 +78,15 @@ export function writeApprovalPage({ vault, now = new Date(), outFile = null }) {
   for (const d of deliveries) for (const id of d.patterns ?? []) if (!lastUsed.has(id) || d.at > lastUsed.get(id)) lastUsed.set(id, d.at);
   const drafts = patterns.filter(p => p.status === 'draft');
   const stale = stalePatterns(patterns, deliveries, now);
-  const { html, mapping } = buildApprovalPage({ drafts, stale, mistakes: currentMistakes().mistakes, skipped, lastUsed, now });
+  // A pattern keeps its number for good, and a number is never given to another pattern, so a reply written from an
+  // older page can never land on a different pattern.
+  const previous = readMap();
+  const numbers = { ...(previous.numbers ?? {}) };
+  let next = previous.next ?? 1;
+  for (const p of [...drafts, ...stale]) if (!numbers[p.id]) { numbers[p.id] = next; next += 1; }
+  const built = buildApprovalPage({ drafts, stale, mistakes: currentMistakes().mistakes, skipped, lastUsed, now, numbers });
+  const html = built.html;
+  const mapping = { ...built.mapping, next, numbers, prints: Object.fromEntries([...drafts, ...stale].map(p => [p.id, fingerprint(p)])) };
   mkdirSync(mistakesHome(), { recursive: true });
   const file = outFile ?? join(mistakesHome(), `approval-${now.toISOString().slice(0, 10)}.html`);
   writeFileSync(file, html);
@@ -105,7 +123,7 @@ export function parseReply(text) {
 // Applies a reply against the numbers of the latest page. Everything is checked first; nothing changes if any part is wrong.
 export function applyReply(text, { vault, now = new Date() }) {
   if (!existsSync(approvalMapPath())) throw new Error('no approval page has been made yet; run "kb patterns page" first');
-  const { items } = JSON.parse(readFileSync(approvalMapPath(), 'utf8'));
+  const { items, prints = {} } = JSON.parse(readFileSync(approvalMapPath(), 'utf8'));
   const decisions = parseReply(text);
   const { patterns } = listPatterns(vault);
   const plan = decisions.map(d => {
@@ -115,6 +133,7 @@ export function applyReply(text, { vault, now = new Date() }) {
     if (!p) throw new Error(`number ${d.n} (${item.id}) can no longer be read`);
     const wanted = d.action === 'retire' ? 'approved' : 'draft';
     if (p.status !== wanted) throw new Error(`cannot ${d.action} number ${d.n} (${p.name}): it is ${p.status}, not ${wanted}`);
+    if (prints[p.id] && prints[p.id] !== fingerprint(p)) throw new Error(`number ${d.n} (${p.name}) changed after the page was made; run "kb patterns page" again and decide from the new page`);
     if (d.action === 'edit' && countWords(d.rule) > MAX_RULE_WORDS) throw new Error(`the new rule for number ${d.n} has ${countWords(d.rule)} words; the limit is ${MAX_RULE_WORDS}`);
     return { ...d, id: item.id };
   });

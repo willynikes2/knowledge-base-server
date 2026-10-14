@@ -1,8 +1,9 @@
 // src/mistakes/draft.js — propose patterns from mistakes that repeat. A model suggests the clusters; this code decides
 // which suggestions are allowed (2+ different tasks, a rule of at most 60 words, real examples). Drafts are never delivered.
 import { spawn } from 'child_process';
-import { currentMistakes, normaliseTags } from './store.js';
-import { MAX_RULE_WORDS, countWords, listPatterns, slugify, writePattern } from './patterns.js';
+import { existsSync, readdirSync } from 'fs';
+import { currentMistakes, ledgerPath, normaliseTags, readJsonl } from './store.js';
+import { MAX_RULE_WORDS, countWords, listPatterns, patternsDir, slugify, writePattern } from './patterns.js';
 
 export const MAX_SENT = 150;
 export const MIN_TASKS = 2;
@@ -14,9 +15,16 @@ const taskOf = (m) => `${m.project}|${m.task}`;
 
 // A mistake is assigned once any pattern (draft, approved, rejected or retired) lists it as evidence, so a rejected
 // idea is not proposed again from the same records.
-export function unassignedMistakes(mistakes, patterns) {
+// A correction (a record that supersedes another) stays with the pattern that used the original. `rows` is every
+// ledger line, including the superseded ones, so the chain can be followed.
+export function unassignedMistakes(mistakes, patterns, rows = mistakes) {
   const taken = new Set(patterns.flatMap(p => p.evidence));
-  return mistakes.filter(m => !m.pattern && !taken.has(m.id));
+  const byId = new Map(rows.map(r => [r.id, r]));
+  const used = (m) => {
+    for (let r = m, hops = 0; r && hops < 1000; r = byId.get(r.supersedes), hops += 1) if (r.pattern || taken.has(r.id)) return true;
+    return false;
+  };
+  return mistakes.filter(m => !used(m));
 }
 
 // A rough hint for the model: the first tag, else the folder of the file, else "other".
@@ -84,12 +92,14 @@ export function claudeLlm(prompt, { timeoutMs = 180_000 } = {}) {
 
 export async function draftPatterns({ vault, llm = claudeLlm, now = new Date(), dryRun = false }) {
   const { patterns } = listPatterns(vault);
-  const open = unassignedMistakes(currentMistakes().mistakes, patterns).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, MAX_SENT);
+  const open = unassignedMistakes(currentMistakes().mistakes, patterns, readJsonl(ledgerPath()).rows).sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, MAX_SENT);
   const result = { sent: open.length, drafted: [], skipped: [] };
   if (new Set(open.map(taskOf)).size < MIN_TASKS) return { ...result, sent: 0 };
   const byId = new Map(open.map(m => [m.id, m]));
   const used = new Set();
-  const slugs = new Set(patterns.map(p => p.id.slice(3)));
+  // Every note file counts as taken, also one that cannot be read: a draft must never overwrite a note.
+  const dir = patternsDir(vault);
+  const slugs = new Set([...patterns.map(p => p.id.slice(3)), ...(existsSync(dir) ? readdirSync(dir).filter(f => f.endsWith('.md')).map(f => f.slice(0, -3)) : [])]);
   for (const c of parseClusters(await llm(buildPrompt(open)))) {
     const name = typeof c?.name === 'string' ? c.name.trim() : '';
     const skip = (reason) => result.skipped.push({ name: name || '(no name)', reason });

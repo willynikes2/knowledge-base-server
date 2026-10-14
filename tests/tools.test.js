@@ -58,7 +58,7 @@ describe('tools', () => {
     assert.ok(names.includes('kb_search'));
     assert.ok(names.includes('kb_ingest'));
     assert.ok(names.includes('kb_write'));
-    assert.ok(names.includes('kb_mistake_record'));
+    assert.ok(!names.includes('kb_mistake_record'));
     assert.ok(names.includes('kb_patterns_for'));
   });
 

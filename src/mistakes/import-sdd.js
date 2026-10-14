@@ -89,7 +89,8 @@ export function commitEvidence(repo, sha, { run = execFileSync } = {}) {
 export function importSdd(dir, { project, clientOk = false, repo = null, now = () => new Date(), mirror = null, evidence = commitEvidence } = {}) {
   if (typeof project !== 'string' || !project.trim()) throw new Error('a project name is required (--project=<name>)');
   if (clientOk !== true) throw new Error("refused: pass --client-ok only when the code owner allows keeping these records (always fine for the operator's own projects)");
-  const result = { ledgers: 0, added: 0, duplicates: 0, weak: 0 };
+  const result = { ledgers: 0, added: 0, duplicates: 0, weak: 0, ...(mirror ? { unmirrored: 0 } : {}) };
+  const keyProject = project.trim().replace(/[^A-Za-z0-9_.-]+/g, '-').replace(/^-+|-+$/g, '') || 'project';
   for (const ledger of ledgerDirs(dir)) {
     result.ledgers += 1;
     const { plan, model, findings } = parseSddLedger(ledger);
@@ -104,9 +105,10 @@ export function importSdd(dir, { project, clientOk = false, repo = null, now = (
         source: 'sdd', project: project.trim(), task: f.task, model, caught_by: 'review',
         task_text_ref: plan && f.taskNumber !== null ? `${plan}#task-${f.taskNumber}` : plan,
         finding: f.text, file: f.file, fix_commit: f.fixCommit, fix_diff: ev.diff, guard_test: ev.guardTest,
-        tags: [], client_ok: true, key: `sdd:${project.trim()}:${f.task}:fix${f.round}:${hash12(f.text)}`,
+        tags: [], client_ok: true, key: `sdd:${keyProject}:${f.task}:fix${f.round}:${hash12(f.text)}`,
       }, { now: now(), mirror });
       if (r.duplicate) result.duplicates += 1; else { result.added += 1; if (!f.fixCommit) result.weak += 1; }
+      if (mirror && !r.mirrored) result.unmirrored += 1;
     }
   }
   return result;
