@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import matter from 'gray-matter';
+import { readNote, writeNote } from '../utils/frontmatter.js';
 import { classifyNote } from './classifier.js';
 import { scanVault } from '../vault/indexer.js';
 import { indexVault } from '../vault/indexer.js';
@@ -15,7 +15,7 @@ function isUnprocessed(filePath, vaultPath) {
   try {
     const content = readFileSync(filePath, 'utf-8');
     if (!content.trim()) return false; // skip empty files
-    const { data: fm } = matter(content);
+    const { data: fm } = readNote(content);
     return !fm.classified;
   } catch {
     return false;
@@ -36,7 +36,7 @@ export async function processNewClippings(vaultPath, { dryRun = false } = {}) {
   for (const filePath of unprocessed) {
     const rel = filePath.replace(vaultPath + '/', '');
     const raw = readFileSync(filePath, 'utf-8');
-    const { data: fm, content: body } = matter(raw);
+    const { data: fm, content: body } = readNote(raw);
     const title = fm.title || rel.split('/').pop().replace(/\.md$/, '');
 
     console.log(`Classifying: ${rel}`);
@@ -75,7 +75,7 @@ export async function processNewClippings(vaultPath, { dryRun = false } = {}) {
       if (val === null) delete updatedFm[key];
     }
 
-    const updated = matter.stringify(body, updatedFm);
+    const updated = writeNote(body, updatedFm);
     writeFileSync(filePath, updated);
 
     results.push({ path: rel, status: 'classified', classification });
