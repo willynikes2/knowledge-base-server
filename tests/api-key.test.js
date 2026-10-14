@@ -30,6 +30,21 @@ describe('API key middleware', () => {
     assert.strictEqual(req.apiService, 'openai');
   });
 
+  it('accepts the swarm key as service "swarm"', () => {
+    process.env.KB_API_KEY_SWARM = 'test-key-swarm-9012';
+    try {
+      const mw = createApiKeyMiddleware();
+      const req = { headers: { 'x-api-key': 'test-key-swarm-9012' } };
+      const res = { status: () => res, json: () => {} };
+      let called = false;
+      mw(req, res, () => { called = true; });
+      assert.ok(called);
+      assert.strictEqual(req.apiService, 'swarm');
+    } finally {
+      delete process.env.KB_API_KEY_SWARM;
+    }
+  });
+
   it('rejects missing key with 401', () => {
     const mw = createApiKeyMiddleware();
     const req = { headers: {} };

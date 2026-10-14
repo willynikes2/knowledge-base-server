@@ -17,6 +17,7 @@ import {
 import { ingestText } from '../ingest.js';
 import { extractFromImage } from '../vision.js';
 import { resolveUnder } from '../safe-path.js';
+import mistakesV1 from './mistakes-v1.js';
 
 const upload = multer({
   dest: join(tmpdir(), 'kb-uploads'),
@@ -28,6 +29,15 @@ const upload = multer({
 });
 
 const router = Router();
+
+// The swarm key is for the mistake ledger only: it opens none of the search, read, ingest or export routes.
+const LEDGER_ROUTES = new Set(['/mistakes', '/mistakes/metrics', '/patterns/for', '/runs']);
+router.use((req, res, next) => {
+  if (req.apiService === 'swarm' && !LEDGER_ROUTES.has(req.path.replace(/\/+$/, ''))) {
+    return res.status(403).json({ error: 'The swarm key can only use the mistake-ledger routes.' });
+  }
+  return next();
+});
 
 // Default vault path for capture functions
 const DEFAULT_VAULT_PATH = join(homedir(), 'knowledgebase');
@@ -501,5 +511,8 @@ router.post('/restore', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ─── Mistake ledger (records, known pitfalls, run metrics) ──────────────────
+router.use(mistakesV1);
 
 export default router;

@@ -312,6 +312,15 @@ bus-wait ticket:PF-1884 --since 12 --timeout-ms 30000
 
 See [docs/message-bus.md](docs/message-bus.md) for channel conventions and cross-model usage.
 
+### Mistake ledger tools (local stdio only)
+
+| Tool | Description |
+|------|-------------|
+| `kb_mistake_record` | Record a mistake a reviewer or test caught, with its fix |
+| `kb_patterns_for` | Get up to 3 approved "known pitfalls" that match a task |
+
+See [docs/mistake-ledger.md](docs/mistake-ledger.md).
+
 ---
 
 ## CLI Commands
@@ -329,6 +338,8 @@ kb classify           Auto-classify unprocessed vault notes
 kb summarize          Generate AI summaries for unsummarized notes
 kb capture-x          Ingest X/Twitter bookmarks from export
 kb safety-check       Review a planned action against KB history
+kb mistakes           Mistake ledger: import-sdd, import-seed, record, record-run, list, stats
+kb patterns           Patterns from repeated mistakes: draft, list, page, set-status
 ```
 
 ---
@@ -580,6 +591,9 @@ These are the actual development patterns used to build this system. Open source
 | `KB_API_KEY_CLAUDE` | No | -- | API key for Claude remote access |
 | `KB_API_KEY_OPENAI` | No | -- | API key for OpenAI/ChatGPT access |
 | `KB_API_KEY_GEMINI` | No | -- | API key for Gemini access |
+| `KB_API_KEY_SWARM` | No | -- | API key for agent-swarm to write to the mistake ledger |
+| `KB_MISTAKES_HOME` | No | ~/.knowledge-base/mistakes | Folder for the mistake ledger files |
+| `KB_PATTERN_MODEL` | No | claude-sonnet-5-5 | Model for `kb patterns draft` |
 | `BETTER_AUTH_SECRET` | No | -- | OAuth token signing secret |
 | `BETTER_AUTH_URL` | No | -- | OAuth issuer URL for remote access |
 | `CLASSIFY_MODEL` | No | claude-haiku-4-5-20251001 | Model for AI classification |

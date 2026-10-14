@@ -50,6 +50,9 @@ function hashFile(filePath) {
   return createHash('sha256').update(buffer).digest('hex').slice(0, 16);
 }
 
+export const isUnsearchablePattern = (parsed) => parsed.type === 'pattern'
+  && !(['approved', 'retired'].includes(parsed.frontmatter?.status) && parsed.frontmatter?.group === 'teach');
+
 export async function indexVault(vaultPath, { embeddings = false } = {}) {
   if (indexing) return { indexed: 0, skipped: 0, deleted: 0, embedded: 0, errors: ['Index already in progress'], total: 0 };
   indexing = true;
@@ -161,6 +164,14 @@ async function _indexVault(vaultPath, { embeddings = false } = {}) {
       }
 
       const parsed = parseVaultNote(content, relPath);
+
+      // A pattern note is searchable only once it is approved for teaching. Drafts, rejected patterns and the
+      // held-back (test) half stay out of the index, so no agent can find a rule it is not meant to have seen.
+      // Leaving the path unseen also removes an earlier index entry (see the clean-up at the end).
+      if (isUnsearchablePattern(parsed)) {
+        seenPaths.delete(relPath);
+        continue;
+      }
 
       // Check if we already have a document for this vault file
       const existing = getVaultFile(relPath);

@@ -5,6 +5,7 @@ const KEY_SERVICES = [
   ['KB_API_KEY_CLAUDE', 'claude'],
   ['KB_API_KEY_OPENAI', 'openai'],
   ['KB_API_KEY_GEMINI', 'gemini'],
+  ['KB_API_KEY_SWARM', 'swarm'],
 ];
 
 /**
@@ -29,7 +30,7 @@ export function serviceForKey(key) {
 /**
  * Creates Express middleware that validates API keys from env vars.
  * Checks X-API-Key header or Authorization: Bearer <key>.
- * Sets req.apiService to the service name (claude/openai/gemini).
+ * Sets req.apiService to the service name (claude/openai/gemini/swarm).
  */
 export function createApiKeyMiddleware() {
   return (req, res, next) => {

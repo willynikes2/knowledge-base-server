@@ -29,6 +29,7 @@ describe('tools', () => {
     const names = tools.map(t => t.name);
     const expected = [
       'bus_send', 'bus_inbox', 'bus_wait',
+      'kb_mistake_record', 'kb_patterns_for',
       'kb_search', 'kb_list', 'kb_read', 'kb_ingest',
       'kb_write', 'kb_vault_status', 'kb_capture_youtube',
       'kb_capture_web', 'kb_capture_session', 'kb_capture_fix',
@@ -57,6 +58,8 @@ describe('tools', () => {
     assert.ok(names.includes('kb_search'));
     assert.ok(names.includes('kb_ingest'));
     assert.ok(names.includes('kb_write'));
+    assert.ok(!names.includes('kb_mistake_record'));
+    assert.ok(!names.includes('kb_patterns_for'));
   });
 
   it('MCP stdio tools/list serializes every tool schema', () => {

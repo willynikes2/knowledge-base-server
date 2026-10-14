@@ -13,7 +13,7 @@ const SECRET_PATTERNS = [
   /(?:sk_live_|sk_test_|pk_live_|pk_test_)[a-zA-Z0-9]+/g,
 ];
 
-function redact(text) {
+export function redact(text) {
   if (!text) return text;
   let result = text;
   for (const pattern of SECRET_PATTERNS) {
