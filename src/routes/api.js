@@ -16,6 +16,7 @@ import {
 } from '../db.js';
 import { ingestFile, ingestDirectory } from '../ingest.js';
 import { indexVault } from '../vault/indexer.js';
+import { learningSummary } from '../mistakes/summary.js';
 
 const router = Router();
 const ALLOWED_MIME_TYPES = new Set([
@@ -187,6 +188,15 @@ router.get('/api/vault/status', authMiddleware, (req, res) => {
       configured: !!vaultPath,
       vault_path: vaultPath || null,
     });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/mistakes/metrics — the Learning panel: mistake and pattern counts, and the one-shot rate by model
+router.get('/api/mistakes/metrics', authMiddleware, (req, res) => {
+  try {
+    return res.json(learningSummary());
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

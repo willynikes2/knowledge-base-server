@@ -59,6 +59,7 @@ function showSection(name) {
   document.querySelectorAll('[data-section]').forEach(l => l.classList.toggle('active', l.dataset.section === name));
   if (name === 'documents') loadDocuments();
   if (name === 'settings') loadStats();
+  if (name === 'learning') loadLearning();
 }
 
 // Logout
@@ -281,6 +282,70 @@ document.getElementById('modal-delete').addEventListener('click', async () => {
   showToast('Document deleted', 'success');
   loadDocuments();
 });
+
+// --- Learning ---
+function percent(rate) {
+  return rate === null ? 'n/a' : Math.round(rate * 100) + '%';
+}
+
+async function loadLearning() {
+  const display = document.getElementById('learning-display');
+  display.textContent = 'Loading…';
+  let data;
+  try {
+    const res = await fetch('/api/mistakes/metrics');
+    if (!res.ok) throw new Error('status ' + res.status);
+    data = await res.json();
+  } catch (err) {
+    display.textContent = 'Could not load the learning numbers. Reload the page to try again.';
+    return;
+  }
+  display.textContent = '';
+
+  function line(label, value) {
+    var p = document.createElement('p');
+    p.textContent = label;
+    var strong = document.createElement('strong');
+    strong.textContent = value;
+    p.appendChild(strong);
+    display.appendChild(p);
+  }
+  function counts(obj) {
+    return Object.keys(obj).map(function(k) { return k + ' ' + obj[k]; }).join(', ') || 'none';
+  }
+
+  line('Mistakes recorded: ', data.mistakes.total + ' (' + counts(data.mistakes.by_source) + ')');
+  line('Patterns: ', (data.patterns.approved || 0) + ' approved, ' + (data.patterns.draft || 0) + ' waiting for approval');
+  if (!data.one_shot.length) {
+    line('Tasks passing their first review: ', 'no runs recorded yet');
+    return;
+  }
+
+  data.one_shot.forEach(function(model) {
+    var heading = document.createElement('h3');
+    heading.textContent = model.model + ': ' + percent(model.rate) + ' of tasks passed their first review (' + model.first_pass + ' of ' + model.attempted + ')';
+    display.appendChild(heading);
+
+    var wrap = document.createElement('div');
+    wrap.className = 'learning-scroll';
+    var table = document.createElement('table');
+    table.className = 'learning-table';
+    var head = table.insertRow();
+    ['Date', 'Project', 'Run', 'Tasks', 'Passed first review', 'Rate', 'Fix rounds', 'Pitfalls given'].forEach(function(title) {
+      var th = document.createElement('th');
+      th.textContent = title;
+      head.appendChild(th);
+    });
+    model.runs.forEach(function(run) {
+      var row = table.insertRow();
+      [run.at.slice(0, 10), run.project, run.run, run.attempted, run.first_pass, percent(run.rate), run.fix_rounds, run.patterns_delivered].forEach(function(value) {
+        row.insertCell().textContent = String(value);
+      });
+    });
+    wrap.appendChild(table);
+    display.appendChild(wrap);
+  });
+}
 
 // --- Settings ---
 async function loadStats() {

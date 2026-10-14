@@ -441,6 +441,39 @@ select {
   justify-content: flex-end;
 }
 
+/* Learning */
+.learning-note {
+  color: #8b949e;
+  margin-bottom: 1rem;
+}
+
+#learning-display h3 {
+  margin: 1.5rem 0 0.5rem;
+}
+
+.learning-scroll {
+  overflow-x: auto;
+}
+
+.learning-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.learning-table th,
+.learning-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #30363d;
+  white-space: nowrap;
+}
+
+.learning-table th {
+  color: #8b949e;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
 /* Settings */
 .settings-group {
   margin-bottom: 2rem;
