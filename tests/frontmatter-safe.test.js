@@ -41,3 +41,24 @@ describe('reading a note header', () => {
     }
   });
 });
+
+describe('writing a note', () => {
+  it('keeps the body exactly as given, whatever it starts with, and never reads it as a header', async () => {
+    const { writeNote } = await import('../src/utils/frontmatter.js');
+    for (const body of ['---js\n{ "added": 1 }\n---\nrest of the body\n', '---\nadded: 1\n---\nrest of the body\n', '---json\n{ "added": 1 }\n---\nrest\n', 'plain body\n']) {
+      const out = writeNote(body, { title: 'Kept' });
+      const back = readNote(out);
+      assert.deepStrictEqual(back.data, { title: 'Kept' }, `header is only what was passed in, for body ${JSON.stringify(body.slice(0, 12))}`);
+      assert.ok(out.endsWith(body) || out.includes(body.trim()), 'the body is written unchanged');
+    }
+  });
+});
+
+describe('a note that starts with a rule line', () => {
+  it('is an ordinary note with no header', () => {
+    for (const text of ['----\n\nText under a rule.\n', '-----\nText\n']) {
+      const { data } = readNote(text);
+      assert.deepStrictEqual(data, {}, JSON.stringify(text.slice(0, 8)));
+    }
+  });
+});
