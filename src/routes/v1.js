@@ -17,6 +17,7 @@ import {
 import { ingestText } from '../ingest.js';
 import { extractFromImage } from '../vision.js';
 import { resolveUnder } from '../safe-path.js';
+import mistakesV1 from './mistakes-v1.js';
 
 const upload = multer({
   dest: join(tmpdir(), 'kb-uploads'),
@@ -501,5 +502,8 @@ router.post('/restore', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ─── Mistake ledger (records, known pitfalls, run metrics) ──────────────────
+router.use(mistakesV1);
 
 export default router;

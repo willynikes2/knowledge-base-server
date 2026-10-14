@@ -3,7 +3,7 @@
 /**
  * Creates Express middleware that validates API keys from env vars.
  * Checks X-API-Key header or Authorization: Bearer <key>.
- * Sets req.apiService to the service name (claude/openai/gemini).
+ * Sets req.apiService to the service name (claude/openai/gemini/swarm).
  */
 export function createApiKeyMiddleware() {
   return (req, res, next) => {
@@ -25,6 +25,7 @@ export function createApiKeyMiddleware() {
     if (process.env.KB_API_KEY_CLAUDE) keyMap[process.env.KB_API_KEY_CLAUDE] = 'claude';
     if (process.env.KB_API_KEY_OPENAI) keyMap[process.env.KB_API_KEY_OPENAI] = 'openai';
     if (process.env.KB_API_KEY_GEMINI) keyMap[process.env.KB_API_KEY_GEMINI] = 'gemini';
+    if (process.env.KB_API_KEY_SWARM) keyMap[process.env.KB_API_KEY_SWARM] = 'swarm';
 
     const service = keyMap[key];
     if (!service) {

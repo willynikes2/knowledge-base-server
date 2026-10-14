@@ -21,6 +21,7 @@ import { getRecentNotes, generateSynthesisPrompt } from './synthesis/weekly-revi
 import { processNewClippings } from './classify/processor.js';
 import { reviewDestructiveAction } from './safety/review.js';
 import { getBusToolDefinitions } from './bus/tools.js';
+import { getMistakeToolDefinitions } from './mistakes/tools.js';
 import { resolveUnder } from './safe-path.js';
 
 const ADMIN_ONLY_TOOLS = new Set([
@@ -139,6 +140,7 @@ async function downloadPublicImageUrl(rawUrl, redirects = 0) {
 export function getToolDefinitions() {
   return [
     ...getBusToolDefinitions(),
+    ...getMistakeToolDefinitions(),
     {
       name: 'kb_search',
       description: 'Search the knowledge base using full-text search. Returns ranked results with highlighted snippets.',
