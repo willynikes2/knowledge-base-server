@@ -1,6 +1,6 @@
 // src/mistakes/store.js — the append-only mistake ledger (raw layer).
 // Records are never edited: a correction is a new record whose `supersedes` names the old one.
-import { appendFileSync, closeSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, readSync } from 'fs';
+import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, writeSync } from 'fs';
 import { randomBytes } from 'crypto';
 import { homedir } from 'os';
 import { dirname, join } from 'path';
@@ -27,19 +27,18 @@ export function ulid(now = Date.now()) {
   return time + rand;
 }
 
-// One appendFileSync per record keeps a record on one line even with several writers (O_APPEND).
+// One write per record keeps a record on one line even with several writers (the file is opened for appending).
 // A file whose last byte is not a newline was cut off mid-write; the new record starts on its own line.
+// The file is opened once and checked and written through the same handle, so it cannot change in between.
 export function appendJsonl(file, obj) {
   mkdirSync(dirname(file), { recursive: true });
-  let prefix = '';
-  if (existsSync(file)) {
-    const fd = openSync(file, 'r');
-    try {
-      const { size } = fstatSync(fd);
-      if (size > 0) { const last = Buffer.alloc(1); readSync(fd, last, 0, 1, size - 1); if (last[0] !== 0x0a) prefix = '\n'; }
-    } finally { closeSync(fd); }
-  }
-  appendFileSync(file, `${prefix}${JSON.stringify(obj)}\n`);
+  const fd = openSync(file, 'a+');
+  try {
+    let prefix = '';
+    const { size } = fstatSync(fd);
+    if (size > 0) { const last = Buffer.alloc(1); readSync(fd, last, 0, 1, size - 1); if (last[0] !== 0x0a) prefix = '\n'; }
+    writeSync(fd, `${prefix}${JSON.stringify(obj)}\n`);
+  } finally { closeSync(fd); }
 }
 
 export function readJsonl(file) {
@@ -84,7 +83,8 @@ export function normaliseTags(tags) {
   if (!Array.isArray(tags)) fail('tags must be an array of strings');
   const out = [];
   for (const raw of tags) {
-    const tag = String(raw).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+    // Only the first 40 characters of a tag are kept, so longer input is cut before it is cleaned.
+    const tag = String(raw).slice(0, 200).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
     if (tag && !out.includes(tag)) out.push(tag);
   }
   return out.slice(0, 10);
