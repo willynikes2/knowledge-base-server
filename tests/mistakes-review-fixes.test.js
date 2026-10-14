@@ -372,3 +372,13 @@ describe('fetching pitfalls is local or swarm only', () => {
     assert.ok(getToolDefinitions().map(t => t.name).includes('kb_patterns_for'));
   });
 });
+
+describe('long secrets are removed whole', () => {
+  it('a very long value after a secret name, and a very long URL password, leave nothing behind', () => {
+    const value = filler(900); const password = filler(400);
+    for (const text of [`api_key=${value}`, `"apiKey": "${value}"`, `https://deploy:${password}@example.com/repo.git`, `https://${password}:x${password}@example.com/`]) {
+      const out = redactSecrets(text);
+      assert.ok(!out.includes(filler(30).slice(3)), `left part of it: ${out.slice(0, 80)}`);
+    }
+  });
+});
