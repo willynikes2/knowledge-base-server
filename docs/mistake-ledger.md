@@ -19,7 +19,7 @@ Set `KB_MISTAKES_HOME` to keep the three files somewhere else.
 
 - **Swarm builds** send their review findings by themselves when a fix passes review (agent-swarm, `KB_API_KEY_SWARM`).
 - **Subagent builds:** `kb mistakes import-sdd <repo>/.superpowers/sdd --project=<name> --client-ok`. Run it as often as you like; nothing is imported twice.
-- **By hand:** the MCP tool `kb_mistake_record`, or `kb mistakes record <record.json>`.
+- **By hand:** the local MCP tool `kb_mistake_record` (stdio only; it is not offered to remote MCP clients), or `kb mistakes record <record.json>`.
 - **The October catalogue:** `kb mistakes import-seed ~/autoresearch/kb-mistakes/catalogue.json`.
 
 `--client-ok` (or `"client_ok": true`) says the owner of the code allows keeping the record. For your own projects that is always true. For a client's code, only with their permission.
@@ -65,3 +65,10 @@ A swarm sends its numbers by itself at the final review. After a subagent build,
 | `KB_MISTAKES_HOME` | `~/.knowledge-base/mistakes` | Folder for the ledger files |
 | `KB_API_KEY_SWARM` | none | API key the swarm uses to write records |
 | `KB_PATTERN_MODEL` | `claude-sonnet-5-5` | Model used by `kb patterns draft` |
+
+## Who can write to the ledger
+
+- The HTTP routes (`/api/v1/mistakes`, `/patterns/for`, `/runs`, `/mistakes/metrics`) accept the swarm key only. That key opens nothing else: not search, not documents, not the MCP endpoint.
+- A record sent over HTTP is always stored as a swarm record and cannot supersede another. Corrections are made locally, with `kb mistakes record` or the local MCP tool.
+- Secrets are removed from every kept field before a record is written: keys and tokens by their prefix, bearer headers, `name = value` pairs whose name says secret, passwords inside URLs, and private-key blocks.
+- The approval page gives each pattern a number for good. A number is never reused, and a reply is refused when the pattern changed after the page was made.

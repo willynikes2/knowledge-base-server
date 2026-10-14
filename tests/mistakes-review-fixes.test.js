@@ -332,3 +332,16 @@ describe('the swarm key at the server gate', () => {
     assert.deepStrictEqual(await run({ 'x-api-key': 'claude-key-for-tests' }, ''), { passed: true, service: 'claude' }, 'other keys are unaffected');
   });
 });
+
+describe('the drafting model call', () => {
+  it('runs with every tool turned off, one turn, no settings and no MCP servers', async () => {
+    const { llmArgs } = await import('../src/mistakes/draft.js');
+    const args = llmArgs('some-model');
+    const valueOf = (flag) => args[args.indexOf(flag) + 1];
+    assert.strictEqual(valueOf('--tools'), '', 'an empty list turns every tool off');
+    assert.strictEqual(valueOf('--max-turns'), '1');
+    assert.strictEqual(valueOf('--model'), 'some-model');
+    assert.strictEqual(valueOf('--setting-sources'), '');
+    assert.ok(args.includes('--strict-mcp-config') && args.includes('--no-session-persistence') && args.includes('-p'));
+  });
+});

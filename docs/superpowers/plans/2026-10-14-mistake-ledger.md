@@ -3461,3 +3461,18 @@ Capture the session in the KB (what was imported, the counts, the first page's l
 | The first approval page has been published | Task 11 step 6 |
 | An approved pattern appears in the next swarm task it matches | Companion plan, Task 2; seen on the first swarm run after an approval |
 | The one-shot rate is recorded for that run | Companion plan, Task 3; shown by Task 10's panel |
+
+## Amendments after the final review (2026-10-14)
+
+The code blocks above are as planned. The final review (Opus), the automated security pass and a Codex review changed these points; the code and `tests/mistakes-review-fixes.test.js` are the authority.
+
+1. **Redaction is wider** (`src/mistakes/redact.js`): the session-capture patterns missed keys with dashes, tokens known by prefix, bearer headers, quoted names, URL passwords and private-key blocks. `caught_by` is bounded.
+2. **The idempotency key is compared exactly.** It is never trimmed, cut or redacted; a key outside `[A-Za-z0-9_.:/#@-]{1,300}` is refused. `import-sdd` builds its key from a slug of the project name. A run's key is a JSON list of its parts.
+3. **Approval numbers are permanent.** `approval-latest.json` keeps `numbers`, `next` and `prints`; a reply is refused when a pattern changed after the page was made.
+4. **The ledger routes are for the swarm key only**, and that key opens nothing else (the v1 router and the server gate both enforce it). A record sent over HTTP is stored as `source: swarm` and cannot set `supersedes`. A server fault answers "The server could not complete this request."
+5. **`kb_mistake_record` is a local tool** (in `ADMIN_ONLY_TOOLS`); `kb_patterns_for` stays available over HTTP.
+6. **Pattern notes are read as YAML data only** (`readNote`/`writeNote` in `src/utils/frontmatter.js`, from the security fix branch). A draft never overwrites an existing note file, readable or not.
+7. **A correction stays with the pattern that used the original** (`unassignedMistakes` follows the `supersedes` chain).
+8. **The KB copy is made once** (`mirrorMistake` checks for an existing document) and is retried when the same record is sent again; imports report copies that failed.
+9. **The drafting model runs with every tool off** (`--tools ""`).
+10. Two security fixes for the whole server came out of this work and are on their own branch, `fix/api-key-bypass`: API keys are compared by value, and note headers are read as data only.

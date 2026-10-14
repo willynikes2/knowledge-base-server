@@ -76,10 +76,13 @@ export function goodExample(m) {
   return fix ? clip(fix, 1200) : null;
 }
 
+// Text in, text out: no tools at all, so nothing written in a finding can make the model read or change anything.
+export const llmArgs = (model) => ['-p', '--model', model, '--output-format', 'text', '--max-turns', '1', '--tools', '',
+  '--setting-sources', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--no-session-persistence'];
+
 export function claudeLlm(prompt, { timeoutMs = 180_000 } = {}) {
   return new Promise((resolvePromise, reject) => {
-    const proc = spawn(process.env.CLAUDE_PATH || 'claude', ['-p', '--model', PATTERN_MODEL(), '--output-format', 'text', '--max-turns', '1',
-      '--setting-sources', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--no-session-persistence'],
+    const proc = spawn(process.env.CLAUDE_PATH || 'claude', llmArgs(PATTERN_MODEL()),
     { env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: 'cli' }, timeout: timeoutMs, stdio: ['pipe', 'pipe', 'pipe'] });
     let out = ''; let err = '';
     proc.stdout.on('data', d => { out += d; });
