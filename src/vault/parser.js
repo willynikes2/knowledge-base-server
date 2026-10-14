@@ -1,4 +1,4 @@
-import matter from 'gray-matter';
+import { readNote } from '../utils/frontmatter.js';
 
 // Map folder prefixes to note types
 // Map folder prefixes to note types — supports both numbered (00_inbox) and unnumbered (inbox) prefixes
@@ -57,7 +57,7 @@ function normalizeTags(tags) {
 }
 
 export function parseVaultNote(content, vaultPath) {
-  const { data: fm, content: body } = matter(content);
+  const { data: fm, content: body } = readNote(content);
 
   const title = fm.title || inferTitleFromContent(body) || vaultPath.split('/').pop().replace(/\.md$/, '');
   const type = fm.type || inferTypeFromPath(vaultPath);

@@ -1,4 +1,31 @@
 // src/middleware/api-key.js
+import { timingSafeEqual } from 'crypto';
+
+const KEY_SERVICES = [
+  ['KB_API_KEY_CLAUDE', 'claude'],
+  ['KB_API_KEY_OPENAI', 'openai'],
+  ['KB_API_KEY_GEMINI', 'gemini'],
+  ['KB_API_KEY_SWARM', 'swarm'],
+];
+
+/**
+ * The service a key belongs to, or null.
+ * The key is compared with each configured key by value. It must never be used to look up a property of a
+ * plain object: every object inherits "constructor", "toString", "__proto__" and so on, and such a lookup
+ * finds them, so those names would pass as valid keys.
+ */
+export function serviceForKey(key) {
+  if (typeof key !== 'string' || key.length === 0) return null;
+  const given = Buffer.from(key);
+  let service = null;
+  for (const [envName, name] of KEY_SERVICES) {
+    const configured = process.env[envName];
+    if (!configured) continue;
+    const expected = Buffer.from(configured);
+    if (expected.length === given.length && timingSafeEqual(expected, given) && service === null) service = name;
+  }
+  return service;
+}
 
 /**
  * Creates Express middleware that validates API keys from env vars.
@@ -11,7 +38,7 @@ export function createApiKeyMiddleware() {
     let key = req.headers['x-api-key'];
     if (!key) {
       const auth = req.headers.authorization;
-      if (auth && auth.startsWith('Bearer ')) {
+      if (typeof auth === 'string' && auth.startsWith('Bearer ')) {
         key = auth.slice(7);
       }
     }
@@ -20,14 +47,7 @@ export function createApiKeyMiddleware() {
       return res.status(401).json({ error: 'Missing API key. Provide X-API-Key header or Authorization: Bearer <key>' });
     }
 
-    // Match against configured keys (only add defined keys to prevent undefined match)
-    const keyMap = {};
-    if (process.env.KB_API_KEY_CLAUDE) keyMap[process.env.KB_API_KEY_CLAUDE] = 'claude';
-    if (process.env.KB_API_KEY_OPENAI) keyMap[process.env.KB_API_KEY_OPENAI] = 'openai';
-    if (process.env.KB_API_KEY_GEMINI) keyMap[process.env.KB_API_KEY_GEMINI] = 'gemini';
-    if (process.env.KB_API_KEY_SWARM) keyMap[process.env.KB_API_KEY_SWARM] = 'swarm';
-
-    const service = keyMap[key];
+    const service = serviceForKey(key);
     if (!service) {
       return res.status(403).json({ error: 'Invalid API key' });
     }
