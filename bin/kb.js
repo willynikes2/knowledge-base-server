@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // bin/kb.js — CLI entry point
-// Commands: start, stop, mcp, register, ingest <path>, search <query>, read <id>, status, setup, bus-send, bus-inbox, bus-wait
+// Commands: start, stop, mcp, register, ingest <path>, search <query>, read <id>, status, setup, bus-send, bus-inbox, bus-wait, mistakes, patterns
 
 import '../src/paths.js'; // loads .env from ~/.knowledge-base/.env
 import { readFileSync } from 'fs';
@@ -103,6 +103,8 @@ const commands = {
   export:   () => import('../src/cli/export-cli.js').then(m => m.exportCmd(args)),
   restore:  () => import('../src/cli/restore-cli.js').then(m => m.restoreCmd(args)),
   auth:     () => import('../src/cli/auth-cli.js').then(m => m.authCmd(args)),
+  mistakes: () => import('../src/cli/mistakes-cli.js').then(m => m.mistakesCmd(args)),
+  patterns: () => import('../src/cli/mistakes-cli.js').then(m => m.patternsCmd(args)),
 };
 
 if (!command || !commands[command]) {
@@ -130,6 +132,8 @@ Commands:
   export             Export vault docs to a portable bundle (--out=dir, --dry-run, --json)
   restore <bundle>   Restore from a bundle (--dry-run, --overwrite, --yes, --strict, --no-embeddings)
   auth add-user <email>  Create an account that can approve OAuth/MCP clients (--password-stdin)
+  mistakes <command>  The mistake ledger: import-sdd, import-seed, record, record-run, list, stats
+  patterns <command>  Patterns from repeated mistakes: draft, list, page, set-status
   setup              Interactive setup wizard (--auto for agent mode)
 `);
   process.exit(command ? 1 : 0);
